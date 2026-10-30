@@ -20,6 +20,8 @@ def has_real_logs():
 
 def use_sample():
     """True when the app is showing the fake demo games."""
+    if config.IN_BROWSER:
+        return True
     if "use_sample" not in st.session_state:
         st.session_state.use_sample = not has_real_logs()
     return st.session_state.use_sample

@@ -4,9 +4,14 @@ Every other module gets game info through here, so the yaml format only
 has to be understood in one place.
 """
 import os
+import sys
 from pathlib import Path
 
 import yaml
+
+# True in the website demo, where the app runs inside the browser (Pyodide):
+# no ffmpeg, no threads and no API calls, so it only shows the demo data.
+IN_BROWSER = sys.platform == "emscripten"
 
 ROOT = Path(__file__).resolve().parent.parent
 FILM_DIR = ROOT / "film"

@@ -21,6 +21,16 @@ theme.page_title("Workflow", "Analyze film")
 st.caption("Add one game of your team and one of your opponent, then run the analysis. "
            "This page always uses your own games, not the demo data.")
 
+if config.IN_BROWSER:
+    with theme.card():
+        theme.heading("Browser demo", "Film is analyzed by the app on your computer")
+        st.markdown("The demo runs entirely in your browser, so it can't cut video or call Claude. On your "
+                    "computer the app does both: add the two games here, press **Analyze**, and the "
+                    "numbers fill in as the film is read. A full game takes a few minutes.\n\n"
+                    "Setup takes about five minutes with Python and ffmpeg: "
+                    "[instructions on GitHub](https://github.com/Euryalus-Kay/Sportive-Scout#setup-once).")
+    st.stop()
+
 raw = config.load_raw()
 raw.setdefault("matchup", {})
 raw.setdefault("games", [])

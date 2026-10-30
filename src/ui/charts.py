@@ -107,21 +107,25 @@ def shot_map(shots, title=None, against=False, height=420):
                   for s in group]
         fig.add_trace(go.Scatter(
             x=[s["xy"][0] * LENGTH / 100 for s in group], y=[s["xy"][1] * WIDTH / 100 for s in group],
-            mode="markers", marker={"symbol": symbol, "size": size, "color": colors,
-                                    "line": {"width": 2 if symbol == "circle-open" else 1.2,
-                                             "color": colors if symbol == "circle-open" else "white"}},
+            mode="markers", showlegend=False,
+            marker={"symbol": symbol, "size": size, "color": colors,
+                    "line": {"width": 2 if symbol == "circle-open" else 1.2,
+                             "color": colors if symbol == "circle-open" else "white"}},
             customdata=[[s.get("timestamp"), _minute(s.get("game_minute")), s.get("position") or "unknown",
                          (s.get("outcome") or "unknown").replace("_", " "),
                          (s.get("build_up") or "unknown").replace("_", " "), s.get("game_id"),
                          s.get("video_seconds")] for s in group],
             hovertemplate=("<b>%{customdata[3]}</b> · %{customdata[1]}<br>Shooter: %{customdata[2]}"
                            "<br>Build-up: %{customdata[4]}<br>Film time %{customdata[0]}<extra></extra>")))
+    # Legend only: the marker shapes, then (for our own shots) the shooter colors.
+    keys = [(name, {"symbol": symbol, "size": 10, "color": "#9ca3af", "line": {"width": 2, "color": "#9ca3af"}})
+            for name, symbol in (("Goal", "star"), ("On target", "circle"), ("Missed or blocked", "circle-open"))]
     if not against:
-        for key, (name, _) in POSITION_GROUPS.items():
-            fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", name=name,
-                                     marker={"size": 10, "color": GROUP_COLORS[key]}))
-        fig.update_layout(showlegend=True, legend={"orientation": "h", "y": -0.02, "x": 0.5, "xanchor": "center",
-                                                   "font": {"size": 11, "color": MUTED}})
+        keys += [(name, {"size": 10, "color": GROUP_COLORS[key]}) for key, (name, _) in POSITION_GROUPS.items()]
+    for name, marker in keys:
+        fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", name=name, marker=marker, hoverinfo="skip"))
+    fig.update_layout(showlegend=True, legend={"orientation": "h", "y": -0.02, "x": 0.5, "xanchor": "center",
+                                               "font": {"size": 11, "color": MUTED}})
     return fig
 
 

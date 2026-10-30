@@ -1,9 +1,25 @@
+# Look modeled on football match-centre pages (soft gray page, white cards, two team colors).
 [theme]
 base = "light"
 primaryColor = "#2a78d6"
-backgroundColor = "#fcfcfb"
-secondaryBackgroundColor = "#f2f1ee"
-textColor = "#0b0b0b"
+backgroundColor = "#f3f4f6"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#111827"
+borderColor = "#e5e7eb"
+showWidgetBorder = true
+baseRadius = "12px"
+buttonRadius = "999px"
+linkColor = "#2a78d6"
+font = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+headingFont = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+chartCategoricalColors = ["#2a78d6", "#eb6834", "#1baf7a", "#9ca3af"]
+dataframeHeaderBackgroundColor = "#f9fafb"
+
+[theme.sidebar]
+backgroundColor = "#ffffff"
+
+[server]
+maxUploadSize = 4096
 
 [browser]
 gatherUsageStats = false

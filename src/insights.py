@@ -11,6 +11,7 @@ from src.visualize import POSITION_GROUPS, position_group
 
 STRONG, POSSIBLE, ONCE = "strong pattern", "possible pattern", "seen once"
 OPPOSITE = {"left": "right", "right": "left", "center": "center"}
+LATE_MINUTE = 75            # goals from here on count as "late"
 
 
 def evidence_label(count):
@@ -23,11 +24,17 @@ def evidence_label(count):
 
 
 def finding(kind, title, detail, count, items=(), tags=(), action=""):
-    """One strength or weakness. `action` = how to counter it / how to exploit it."""
-    stamps = [f"{e['timestamp']}" for e in items if e.get("timestamp")]
+    """One strength or weakness. `action` = how to counter it / how to exploit it.
+
+    `moments` keeps the game and video time of each piece of evidence, so the
+    app can show the frame or a clip of it.
+    """
+    with_time = [e for e in items if e.get("timestamp")]
+    moments = [{"game_id": e.get("game_id"), "seconds": e.get("video_seconds"),
+                "timestamp": str(e["timestamp"])} for e in with_time]
     return {"kind": kind, "title": title, "detail": detail, "count": count,
-            "evidence": evidence_label(count), "timestamps": stamps[:12],
-            "tags": list(tags), "action": action}
+            "evidence": evidence_label(count), "timestamps": [m["timestamp"] for m in moments][:12],
+            "moments": moments[:12], "tags": list(tags), "action": action}
 
 
 def per90(p, n):
@@ -138,6 +145,24 @@ def strengths(p):
             items=p["shots_against"], tags=["solid_defense"],
             action="Be patient; quick switches of play and shots from the edge of the box "
                    "may be the best chances."))
+
+    late = _late(p["goals_for"])
+    if len(late) >= 2:
+        out.append(finding(
+            "strength", f"Dangerous late in games ({len(late)} goals after {LATE_MINUTE}')",
+            "They keep pushing and score in the last part of games.", len(late),
+            items=late, tags=["late_goals"],
+            action="Stay switched on until the final whistle: make defensive changes early "
+                   "and keep our shape when we are tired."))
+
+    number, n, pct = _key_player(p["players"])
+    if number:
+        out.append(finding(
+            "strength", f"Their #{number} is on the ball a lot ({pct:.0f}% of readable numbers)",
+            f"#{number} is the jersey number seen most often near the ball ({n} frames).", n,
+            tags=["key_player"],
+            action=f"Know where #{number} is at all times: deny them the ball and get tight "
+                   "as soon as they receive it."))
     return out
 
 
@@ -228,6 +253,15 @@ def weaknesses(p):
             "They struggle to get shots off.", max(1, len(p["shots_for"])),
             items=p["shots_for"], tags=["few_chances"],
             action="Stay organized and don't over-commit; they rely on mistakes to score."))
+
+    late = _late(p["goals_against"])
+    if len(late) >= 2:
+        out.append(finding(
+            "weakness", f"Concede late in games ({len(late)} goals after {LATE_MINUTE}')",
+            "Their concentration or legs fade near the end.", len(late),
+            items=late, tags=["late_goals"],
+            action="Keep the pressure on in the last 20 minutes and bring on fresh legs "
+                   "around the 65th minute."))
     return out
 
 
@@ -331,6 +365,20 @@ def _most_common_side(events):
 
 def _with_build_up(shots, build_up):
     return [s for s in shots if s.get("build_up") == build_up]
+
+
+def _late(goals):
+    return [g for g in goals if (g.get("game_minute") or 0) >= LATE_MINUTE]
+
+
+def _key_player(players):
+    """The jersey number seen most, if it stands out: (number, frames, % of readable)."""
+    total = sum(players.values())
+    if not total:
+        return None, 0, 0
+    number, n = players.most_common(1)[0]
+    pct = 100 * n / total
+    return (number, n, pct) if n >= 8 and pct >= 25 else (None, 0, 0)
 
 
 def _group(position):

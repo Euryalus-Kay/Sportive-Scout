@@ -6,3 +6,6 @@ __pycache__/
 .DS_Store
 sample/logs/
 sample/reports/
+.pytest_cache/
+logs/.*.lock
+*.tmp

@@ -5,11 +5,15 @@ Usage:
     python -m src.report --sample   # the fake demo games
 """
 import argparse
+import base64
+import html
+import io
+from datetime import date
 
 from src import config, sample_data
 from src.aggregate import events_of, team_profile
 from src.insights import game_plan, strengths, weaknesses, context_notes
-from src.visualize import save_all, slugify
+from src.visualize import SURFACE, save_all, slugify, team_figures
 
 
 def build(cfg, logs_dir, reports_dir):
@@ -24,6 +28,7 @@ def build(cfg, logs_dir, reports_dir):
         path.write_text(team_report(p, pngs, reports_dir))
     plan = game_plan(us, them)
     (reports_dir / "game_plan.md").write_text(game_plan_markdown(us, them, plan, images, reports_dir))
+    (reports_dir / "scouting_report.html").write_text(html_report(us, them, plan))
     return us, them, plan
 
 
@@ -126,6 +131,103 @@ def game_plan_markdown(us, them, plan, images, reports_dir):
               f"![{us['team']} with the ball]({rel(us['team'], 'heat_in')})",
               f"![{us['team']} without the ball]({rel(us['team'], 'heat_out')})", ""]
     return "\n".join(lines)
+
+
+# ---------- printable HTML ----------
+
+HTML_STYLE = """
+body { font-family: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif; color: #111827; background: #f3f4f6;
+       margin: 0; padding: 32px 16px; }
+main { max-width: 960px; margin: 0 auto; }
+h1 { font-size: 28px; margin: 0 0 4px; } h2 { font-size: 20px; margin: 28px 0 10px; }
+h3 { font-size: 15px; margin: 0 0 6px; }
+.muted { color: #6b7280; font-size: 13px; }
+.card { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 16px 18px; margin: 12px 0;
+        break-inside: avoid; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.item { border-left: 4px solid var(--tone); padding: 6px 12px; margin: 8px 0; }
+.item p { margin: 2px 0; font-size: 14px; }
+.chip { display: inline-block; background: #f3f4f6; border-radius: 999px; padding: 1px 9px; font-size: 12px;
+        color: #374151; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+td { padding: 6px 4px; border-bottom: 1px solid #f1f2f4; } td.num { text-align: right; font-weight: 700; }
+img { width: 100%; height: auto; }
+@media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+@media print { body { background: #fff; padding: 0; } .card { border-color: #ddd; } }
+"""
+
+
+def html_report(us, them, plan):
+    """One self-contained HTML page (charts embedded) to print or send to coaches."""
+    e = lambda text: html.escape(str(text))
+    out = [f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' "
+           f"content='width=device-width, initial-scale=1'><title>Scouting report: {e(them['team'])}</title>"
+           f"<style>{HTML_STYLE}</style></head><body><main>",
+           f"<h1>{e(us['team'])} vs {e(them['team'])}</h1>",
+           f"<div class='muted'>Sportive Scout report, {date.today():%B %d, %Y}. Every number comes from "
+           f"logged game film; patterns marked 'seen once' are things to watch for, not facts.</div>"]
+    if plan["context"]:
+        out.append("<div class='card'>" + "".join(f"<p class='muted'>{e(n)}</p>" for n in plan["context"]) + "</div>")
+
+    out.append("<h2>Game plan</h2><div class='grid'>")
+    for title, items, tone in (("Attack their weaknesses", plan["exploit"], "#1baf7a"),
+                               ("Stop their strengths", plan["counter"], "#eb6834")):
+        out.append(f"<div class='card'><h3>{title}</h3>")
+        for m in items or []:
+            f = m["item"]
+            out.append(f"<div class='item' style='--tone:{tone}'><p><b>{e(f['title'])}</b> "
+                       f"<span class='chip'>{e(f['evidence'])}</span></p><p>{e(f['action'])}</p>"
+                       + (f"<p class='muted'>Linked: {e('; '.join(m['matches']))}</p>" if m["matches"] else "")
+                       + "</div>")
+        if not items:
+            out.append("<p class='muted'>Nothing clear enough yet.</p>")
+        out.append("</div>")
+    out.append("</div>")
+    if plan["fix"]:
+        out.append("<div class='card'><h3>Fix in training this week</h3>"
+                   + "".join(f"<div class='item' style='--tone:#dc2626'><p><b>{e(w['title'])}</b></p>"
+                             f"<p>{e(w['action'])}</p></div>" for w in plan["fix"]) + "</div>")
+    out.append("<div class='grid'><div class='card'><h3>Set pieces</h3>"
+               + "".join(f"<p>{e(n)}</p>" for n in plan["set_pieces"]) + "</div>"
+               "<div class='card'><h3>First 10-15 minutes</h3>"
+               + "".join(f"<p>&#9744; {e(c)}</p>" for c in plan["first_15"]) + "</div></div>")
+
+    for p in (them, us):
+        out.append(_team_html(p, e))
+    out.append("</main></body></html>")
+    return "\n".join(out)
+
+
+def _team_html(p, e):
+    """The section of the HTML report for one team."""
+    figs = team_figures(p)
+    poss = p["possession_pct"]
+    rows = [("Minutes analyzed", f"{p['minutes_covered']:.0f}"),
+            ("Possession", f"{poss:.0f}%" if poss is not None else "not logged"),
+            ("Shots / goals", f"{len(p['shots_for'])} / {len(p['goals_for'])}"),
+            ("Shots / goals conceded", f"{len(p['shots_against'])} / {len(p['goals_against'])}"),
+            ("Shape with / without the ball", f"{p['formation_in'] or '?'} / {p['formation_out'] or '?'}"),
+            ("Average confidence", f"{p['avg_confidence']:.2f}")]
+    out = [f"<h2>{e(p['team'])}</h2><div class='card'><table>"
+           + "".join(f"<tr><td>{e(k)}</td><td class='num'>{e(v)}</td></tr>" for k, v in rows) + "</table></div>"]
+    out.append("<div class='grid'>")
+    for title, items in (("Strengths", strengths(p)), ("Weaknesses", weaknesses(p))):
+        out.append(f"<div class='card'><h3>{title}</h3>"
+                   + ("".join(f"<p><b>{e(f['title'])}</b> <span class='chip'>{e(f['evidence'])}</span><br>"
+                              f"<span class='muted'>{e(f['detail'])}</span></p>" for f in items)
+                      or "<p class='muted'>Nothing clear enough yet.</p>") + "</div>")
+    out.append("</div><div class='grid'>")
+    for key in ("formation_out", "formation_in", "heat_in", "heat_out", "shots_for", "shots_against",
+                "turnovers", "attack_side"):
+        out.append(f"<div class='card'>{_img(figs[key])}</div>")
+    out.append(f"</div><div class='card'>{_img(figs['timeline'])}</div>")
+    return "".join(out)
+
+
+def _img(fig):
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format="png", dpi=110, bbox_inches="tight", facecolor=SURFACE)
+    return f"<img alt='' src='data:image/png;base64,{base64.b64encode(buffer.getvalue()).decode()}'>"
 
 
 def main():

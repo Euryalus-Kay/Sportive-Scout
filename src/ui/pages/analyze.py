@@ -164,7 +164,8 @@ with theme.card():
                               f"{game.get('analyzed_team_name')} vs {game.get('other_team_name') or '?'}")
             with c[1]:
                 theme.status([(text, theme.GOOD if ok else "#c3c8cf") for text, ok in lines])
-            c[2].metric("Spent", f"${spent:.2f}", label_visibility="visible")
+            with c[2]:
+                theme.heading("Spent", f"${spent:.2f}")
             if ready:
                 with st.expander("Edit this game"):
                     entry = game_form(game, f"edit_{i}")

@@ -1,10 +1,14 @@
-"""Strengths, weaknesses, counters and the matchup game plan.
+"""Strengths, weaknesses and the matchup, as plain insights.
 
-Each finding comes from a simple rule over a team profile (see aggregate.py),
-with the count and timestamps that back it up. Findings carry `tags`, always
-written from the ATTACKING team's point of view (e.g. "attack_left" means
-"attacks get through down the attacker's left"). That lets an opponent
-weakness be matched to one of our strengths with the same tag.
+Each finding comes from a simple rule over a team profile (see aggregate.py)
+and is written as a number with a short line, e.g. stat "59%", label "of
+final-third possession down the left", basis "143 frames". The app shows
+insights only. The older coaching advice is still kept in `action` for the
+markdown game plan, but nothing on screen tells the coach what to do.
+
+Findings carry `tags`, always written from the ATTACKING team's point of view
+(e.g. "attack_left" means "attacks get through down the attacker's left").
+That lets an opponent weakness be matched to one of our strengths.
 """
 from src.aggregate import events_of, share
 from src.visualize import POSITION_GROUPS, position_group
@@ -23,8 +27,8 @@ def evidence_label(count):
     return ONCE
 
 
-def finding(kind, title, detail, count, items=(), tags=(), action=""):
-    """One strength or weakness. `action` = how to counter it / how to exploit it.
+def finding(kind, stat, label, basis, count, items=(), tags=(), action=""):
+    """One strength or weakness: a stat, what it measures, and what it is based on.
 
     `moments` keeps the game and video time of each piece of evidence, so the
     app can show the frame or a clip of it.
@@ -32,13 +36,23 @@ def finding(kind, title, detail, count, items=(), tags=(), action=""):
     with_time = [e for e in items if e.get("timestamp")]
     moments = [{"game_id": e.get("game_id"), "seconds": e.get("video_seconds"),
                 "timestamp": str(e["timestamp"])} for e in with_time]
-    return {"kind": kind, "title": title, "detail": detail, "count": count,
+    return {"kind": kind, "stat": stat, "label": label, "basis": basis,
+            "title": f"{stat} {label}", "detail": basis, "count": count,
             "evidence": evidence_label(count), "timestamps": [m["timestamp"] for m in moments][:12],
             "moments": moments[:12], "tags": list(tags), "action": action}
 
 
 def per90(p, n):
     return n * p["per90"]
+
+
+def _frames(n):
+    return f"{n} frame" + ("" if n == 1 else "s")
+
+
+def _say(n, one, many):
+    """The right wording for a count: _say(1, "shot", "shots") -> "shot"."""
+    return one if n == 1 else many
 
 
 # ---------- strengths ----------
@@ -48,121 +62,99 @@ def strengths(p):
     poss = p["possession_pct"]
     if poss is not None and poss >= 55:
         out.append(finding(
-            "strength", f"Controls possession ({poss:.0f}%)",
-            "They keep the ball for long spells.", p["possession"]["analyzed_team"],
-            tags=["possession"],
+            "strength", f"{poss:.0f}%", "possession", f"from {_frames(_poss_frames(p))}",
+            p["possession"]["analyzed_team"], tags=["possession"],
             action="Stay compact and let them pass in harmless areas; win it in midfield "
                    "and break fast before they can reset."))
 
     side, pct = _main_side(p["attack_side"])
     if side and pct >= 45 and p["attack_side"][side] >= 5:
-        if side == "center":
-            out.append(finding(
-                "strength", f"Attacks mostly through the middle ({pct:.0f}% of final-third possession)",
-                "Final-third possession is concentrated centrally.", p["attack_side"][side],
-                tags=["attack_center"],
-                action="Keep the midfield and center backs tight together and force them wide, "
-                       "where crosses are easier to defend."))
-        else:
-            out.append(finding(
-                "strength", f"Attacks mostly down their {side} ({pct:.0f}% of final-third possession)",
-                f"Most of their final-third possession is on their {side} side.",
-                p["attack_side"][side], tags=[f"attack_{side}"],
-                action=f"Shift our block toward that side: our {OPPOSITE[side]} back and "
-                       f"{OPPOSITE[side]}-sided midfielder must defend it together, with a "
-                       "central midfielder ready to cover."))
+        where = "through the middle" if side == "center" else f"down the {side}"
+        out.append(finding(
+            "strength", f"{pct:.0f}%", f"of final-third possession {where}",
+            f"{_frames(sum(p['attack_side'].values()))} in the final third", p["attack_side"][side],
+            tags=[f"attack_{side}"],
+            action="Keep the midfield and center backs tight and force them wide." if side == "center" else
+                   f"Shift our block toward that side: our {OPPOSITE[side]} back and "
+                   f"{OPPOSITE[side]}-sided midfielder defend it together."))
 
     goals = p["goals_for"]
     group, n = _main_position_group(goals)
     if len(goals) >= 2 and n / len(goals) >= 0.5:
         out.append(finding(
-            "strength", f"Most goals come from {group.lower()}s ({n} of {len(goals)})",
-            "Their scoring is concentrated in one area of the team.", n,
+            "strength", f"{n} of {len(goals)}", f"goals scored by {group.lower()}s", "goals in the analyzed film", n,
             items=[g for g in goals if _group(g.get("position")) == group],
             tags=[f"scorer_{group.lower()}"],
-            action=f"Keep tight marking on their {group.lower()}s in and around the box; "
-                   "don't let them turn or run in behind."))
+            action=f"Keep tight marking on their {group.lower()}s in and around the box."))
 
     shots_90 = per90(p, len(p["shots_for"]))
     if p["minutes_covered"] >= 20 and shots_90 >= 12:
         out.append(finding(
-            "strength", f"Creates a lot of shots ({shots_90:.0f} per 90)",
-            "They get the ball into shooting areas often.", len(p["shots_for"]),
+            "strength", f"{shots_90:.1f}", "shots per 90",
+            f"{len(p['shots_for'])} shots in {p['minutes_covered']:.0f} min", len(p["shots_for"]),
             items=p["shots_for"], tags=["shooting"],
-            action="Protect the area in front of our box: a holding midfielder screens, "
-                   "defenders step to block shots."))
+            action="Protect the area in front of our box and block shots."))
 
     crosses = events_of(p["events_for"], "cross")
     if len(crosses) >= 5:
         out.append(finding(
-            "strength", f"Crosses a lot ({len(crosses)} crosses)",
-            "Wide delivery is a main way they create chances.", len(crosses),
-            items=crosses, tags=["crosses"],
-            action="Stop crosses at the source by doubling up on their wide players, and "
-                   "always have the far post covered."))
+            "strength", f"{len(crosses)}", "crosses", f"{per90(p, len(crosses)):.1f} per 90",
+            len(crosses), items=crosses, tags=["crosses"],
+            action="Double up on their wide players and cover the far post."))
 
-    counters = _with_build_up(p["shots_for"], "counter") + events_of(p["events_for"], "counter")
+    counter_shots = _with_build_up(p["shots_for"], "counter")
+    counters = counter_shots + events_of(p["events_for"], "counter")
     if len(counters) >= 2:
         out.append(finding(
-            "strength", f"Dangerous on the counter ({len(counters)} counters)",
-            "They attack quickly after winning the ball.", len(counters),
-            items=counters, tags=["counter"],
-            action="When we attack, keep 2-3 players behind the ball (rest defense) and "
-                   "foul tactically early in their counter if needed."))
+            "strength", f"{len(counters)}", "counter-attacks",
+            f"{len(counter_shots)} ended in a shot", len(counters), items=counters, tags=["counter"],
+            action="Keep 2-3 players behind the ball when we attack."))
 
     presses = events_of(p["events_for"], "press")
     if len(presses) >= 5 and share(p["block_out"], "high") >= 35:
         out.append(finding(
-            "strength", f"Presses high ({len(presses)} presses)",
-            "They try to win the ball back near our goal.", len(presses),
+            "strength", f"{len(presses)}", "presses",
+            f"{share(p['block_out'], 'high'):.0f}% of defending time in a high block", len(presses),
             items=presses, tags=["press"],
-            action="Move the ball quickly past their first line, use the goalkeeper as an "
-                   "extra passer, and go long into the space behind their press."))
+            action="Move the ball quickly past their first line or go long behind it."))
 
     set_pieces = _with_build_up(p["shots_for"], "set_piece")
     if len(set_pieces) >= 2 or any(s.get("outcome") == "goal" for s in set_pieces):
+        goals_sp = sum(s.get("outcome") == "goal" for s in set_pieces)
         out.append(finding(
-            "strength", f"Set-piece threat ({len(set_pieces)} shots from set pieces)",
-            "Corners and free kicks turn into chances.", len(set_pieces),
-            items=set_pieces, tags=["set_piece"],
-            action="Mark their tallest players tightly at corners and free kicks, and "
-                   "clear the second ball quickly."))
+            "strength", f"{len(set_pieces)}", _say(len(set_pieces), "shot from a set piece", "shots from set pieces"),
+            f"{goals_sp} scored",
+            len(set_pieces), items=set_pieces, tags=["set_piece"],
+            action="Mark their tallest players tightly at corners and free kicks."))
 
     long_balls = events_of(p["events_for"], "long_ball")
     if len(long_balls) >= 5:
         out.append(finding(
-            "strength", f"Play direct ({len(long_balls)} long balls)",
-            "They often skip midfield with long passes.", len(long_balls),
-            items=long_balls, tags=["long_ball"],
-            action="Win the first header, have a midfielder collect the second ball, and "
-                   "keep our back line from getting caught too high."))
+            "strength", f"{len(long_balls)}", "long balls", f"{per90(p, len(long_balls)):.1f} per 90",
+            len(long_balls), items=long_balls, tags=["long_ball"],
+            action="Win the first header and collect the second ball."))
 
     against_90 = per90(p, len(p["shots_against"]))
     if p["minutes_covered"] >= 20 and against_90 <= 6:
         out.append(finding(
-            "strength", f"Hard to create chances against ({against_90:.0f} shots conceded per 90)",
-            "Opponents rarely get shots off.", max(1, len(p["shots_against"])),
+            "strength", f"{against_90:.1f}", "shots conceded per 90",
+            f"{len(p['shots_against'])} in {p['minutes_covered']:.0f} min", max(1, len(p["shots_against"])),
             items=p["shots_against"], tags=["solid_defense"],
-            action="Be patient; quick switches of play and shots from the edge of the box "
-                   "may be the best chances."))
+            action="Be patient; switch play and shoot from the edge of the box."))
 
     late = _late(p["goals_for"])
     if len(late) >= 2:
         out.append(finding(
-            "strength", f"Dangerous late in games ({len(late)} goals after {LATE_MINUTE}')",
-            "They keep pushing and score in the last part of games.", len(late),
-            items=late, tags=["late_goals"],
-            action="Stay switched on until the final whistle: make defensive changes early "
-                   "and keep our shape when we are tired."))
+            "strength", f"{len(late)}", f"goals after {LATE_MINUTE}'", f"of {len(p['goals_for'])} goals",
+            len(late), items=late, tags=["late_goals"],
+            action="Make defensive changes early and keep our shape late."))
 
     number, n, pct = _key_player(p["players"])
     if number:
         out.append(finding(
-            "strength", f"Their #{number} is on the ball a lot ({pct:.0f}% of readable numbers)",
-            f"#{number} is the jersey number seen most often near the ball ({n} frames).", n,
-            tags=["key_player"],
-            action=f"Know where #{number} is at all times: deny them the ball and get tight "
-                   "as soon as they receive it."))
+            "strength", f"#{number}", "seen near the ball most", f"{pct:.0f}% of readable numbers",
+            n, tags=["key_player"],
+            action=f"Know where #{number} is and get tight when they receive it."))
     return out
 
 
@@ -173,125 +165,130 @@ def weaknesses(p):
     own_half = [t for t in p["turnovers"] if t.get("zone") and t["zone"][0] <= 3]
     if len(own_half) >= 2:
         side = _most_common_side(own_half)
-        if side == "center":
-            where, focus = ", mostly centrally", "through the middle"
-        else:
-            where, focus = f", mostly on their {side} side", f"on their {side} (our {OPPOSITE[side]})"
+        where = "mostly central" if side == "center" else f"mostly on their {side}"
         out.append(finding(
-            "weakness", f"Lose the ball in their own half ({len(own_half)} times){where}",
-            "Turnovers close to their own goal.", len(own_half),
+            "weakness", f"{len(own_half)}", "turnovers in their own half", where, len(own_half),
             items=own_half, tags=["press", f"press_{OPPOSITE[side]}"],
-            action=f"Press their build-up hard, especially {focus}. "
-                   "A turnover there is close to their goal."))
+            action="Press their build-up hard; a turnover there is close to their goal."))
 
     side, pct = _main_side(p["defend_side"])
     if side and side != "center" and pct >= 45 and p["defend_side"][side] >= 5:
-        attacker_side = OPPOSITE[side]
         out.append(finding(
-            "weakness", f"Opponents get into their box down their {side} ({pct:.0f}%)",
-            f"When defending deep, most of the danger comes down their {side} side.",
-            p["defend_side"][side], tags=[f"attack_{attacker_side}"],
-            action=f"Attack down our {attacker_side}: that is their {side} side, where "
-                   "opponents already find space."))
+            "weakness", f"{pct:.0f}%", f"of opponents' attacks come down their {side}",
+            f"{_frames(sum(p['defend_side'].values()))} in their defensive third", p["defend_side"][side],
+            tags=[f"attack_{OPPOSITE[side]}"],
+            action=f"Attack down our {OPPOSITE[side]}: that is their {side} side."))
 
     against_90 = per90(p, len(p["shots_against"]))
     if p["minutes_covered"] >= 20 and against_90 >= 12:
         out.append(finding(
-            "weakness", f"Concede a lot of shots ({against_90:.0f} per 90)",
-            "Opponents get into shooting positions often.", len(p["shots_against"]),
+            "weakness", f"{against_90:.1f}", "shots conceded per 90",
+            f"{len(p['shots_against'])} in {p['minutes_covered']:.0f} min", len(p["shots_against"]),
             items=p["shots_against"], tags=["shooting"],
-            action="Shoot early and often; get bodies into the box for rebounds."))
+            action="Shoot early and often."))
 
     sp_against = _with_build_up(p["shots_against"], "set_piece")
     if sp_against:
         goals = sum(s.get("outcome") == "goal" for s in sp_against)
         out.append(finding(
-            "weakness", f"Vulnerable at set pieces ({len(sp_against)} shots, {goals} goals conceded)",
-            "Corners and free kicks against them lead to chances.", len(sp_against),
+            "weakness", f"{len(sp_against)}", _say(len(sp_against), "set-piece shot conceded", "set-piece shots conceded"),
+            f"{goals} goal{'s' if goals != 1 else ''} conceded", len(sp_against),
             items=sp_against, tags=["set_piece"],
-            action="Win corners and free kicks near their box, and practice our best "
-                   "set-piece routines this week."))
+            action="Win corners and free kicks near their box."))
 
     counter_against = _with_build_up(p["shots_against"], "counter")
     if counter_against:
+        goals = sum(s.get("outcome") == "goal" for s in counter_against)
         out.append(finding(
-            "weakness", f"Caught on the counter ({_plural(len(counter_against), 'shot')} conceded)",
-            "Chances against them come after they lose the ball going forward.",
-            len(counter_against), items=counter_against, tags=["counter"],
-            action="Stay compact, let them commit players forward, then break fast."))
+            "weakness", f"{len(counter_against)}",
+            _say(len(counter_against), "shot conceded on the counter", "shots conceded on the counter"),
+            f"{goals} goal{'s' if goals != 1 else ''} conceded", len(counter_against),
+            items=counter_against, tags=["counter"],
+            action="Stay compact, let them commit forward, then break fast."))
 
+    defending = sum(v for k, v in p["block_out"].items() if k)
     high = share(p["block_out"], "high")
     if high >= 40:
         out.append(finding(
-            "weakness", f"High defensive line leaves space behind ({high:.0f}% of defending frames)",
-            "They defend far up the field.", p["block_out"]["high"],
-            tags=["long_ball", "counter"],
-            action="Play balls in behind their defense for our fastest forwards; "
-                   "beat the first press and the space is there."))
+            "weakness", f"{high:.0f}%", "of defending time in a high block",
+            f"{_frames(defending)} without the ball", p["block_out"]["high"], tags=["long_ball", "counter"],
+            action="Play balls in behind their defense."))
 
     low = share(p["block_out"], "low")
     if low >= 50:
         out.append(finding(
-            "weakness", f"Sit deep without the ball ({low:.0f}% of defending frames)",
-            "They give up space in front of their defense.", p["block_out"]["low"],
-            tags=["possession", "shooting"],
-            action="Be patient with the ball, switch play to stretch them, and shoot "
-                   "from the edge of the box."))
+            "weakness", f"{low:.0f}%", "of defending time in a low block",
+            f"{_frames(defending)} without the ball", p["block_out"]["low"], tags=["possession", "shooting"],
+            action="Be patient, switch play and shoot from the edge of the box."))
 
     poss = p["possession_pct"]
     if poss is not None and poss <= 42:
         out.append(finding(
-            "weakness", f"Struggle to keep the ball ({poss:.0f}% possession)",
-            "They spend long spells without the ball.", p["possession"]["other_team"],
-            tags=["press", "possession"],
-            action="Press them early; they are not comfortable keeping the ball."))
+            "weakness", f"{poss:.0f}%", "possession", f"from {_frames(_poss_frames(p))}",
+            p["possession"]["other_team"], tags=["press", "possession"],
+            action="Press them early."))
 
     shots_90 = per90(p, len(p["shots_for"]))
     if p["minutes_covered"] >= 20 and shots_90 <= 6:
         out.append(finding(
-            "weakness", f"Create few chances ({shots_90:.0f} shots per 90)",
-            "They struggle to get shots off.", max(1, len(p["shots_for"])),
+            "weakness", f"{shots_90:.1f}", "shots per 90",
+            f"{len(p['shots_for'])} in {p['minutes_covered']:.0f} min", max(1, len(p["shots_for"])),
             items=p["shots_for"], tags=["few_chances"],
-            action="Stay organized and don't over-commit; they rely on mistakes to score."))
+            action="Stay organized and don't over-commit."))
 
     late = _late(p["goals_against"])
     if len(late) >= 2:
         out.append(finding(
-            "weakness", f"Concede late in games ({len(late)} goals after {LATE_MINUTE}')",
-            "Their concentration or legs fade near the end.", len(late),
-            items=late, tags=["late_goals"],
-            action="Keep the pressure on in the last 20 minutes and bring on fresh legs "
-                   "around the 65th minute."))
+            "weakness", f"{len(late)}", f"goals conceded after {LATE_MINUTE}'",
+            f"of {len(p['goals_against'])} conceded", len(late), items=late, tags=["late_goals"],
+            action="Keep the pressure on in the last 20 minutes."))
     return out
 
 
 # ---------- context ----------
 
 def context_notes(p):
-    """Warnings about game context that change how much the numbers mean."""
+    """Short notes on game context that change how much the numbers mean."""
     notes = []
     for g in p["games"]:
         vs = g.get("other_team_name") or "opponent"
         strength = g.get("opponent_strength")
         if strength == "weaker":
-            notes.append(f"vs {vs}: opponent was weaker, so attacking numbers may look better than usual.")
+            notes.append(f"vs {vs}: weaker opponent, attacking numbers may run high")
         elif strength == "stronger":
-            notes.append(f"vs {vs}: opponent was stronger, so defensive numbers may look worse than usual.")
+            notes.append(f"vs {vs}: stronger opponent, defensive numbers may run high")
         if g.get("playoff"):
-            notes.append(f"vs {vs}: playoff game, so expect a similar high-stakes approach.")
+            notes.append(f"vs {vs}: playoff game")
         if g.get("final_score"):
-            notes.append(f"vs {vs}: final score {g['final_score']} (game state affects tactics).")
+            notes.append(f"vs {vs}: finished {g['final_score']}")
     if p["minutes_covered"] < 45:
-        notes.append(f"Only {p['minutes_covered']:.0f} minutes analyzed so far; treat patterns as early reads.")
+        notes.append(f"Only {p['minutes_covered']:.0f} min analyzed so far, so this is an early read")
     if p["avg_confidence"] and p["avg_confidence"] < 0.5:
-        notes.append(f"Average confidence is low ({p['avg_confidence']:.2f}); the film was hard to read.")
+        notes.append(f"Film was hard to read (confidence {p['avg_confidence']:.2f})")
     return notes
+
+
+def setup(p):
+    """The team's usual setup as (label, value) facts."""
+    side, pct = _main_side(p["attack_side"])
+    return [("Shape without the ball", p["formation_out"] or "not clear"),
+            ("Defensive block", (p["block_out_main"] or "not clear").capitalize()),
+            ("Shape with the ball", p["formation_in"] or "not clear"),
+            ("Main attacking side", f"{side.capitalize()} ({pct:.0f}%)" if side else "not clear"),
+            ("Possession", f"{p['possession_pct']:.0f}%" if p["possession_pct"] is not None else "not logged")]
+
+
+def set_piece_numbers(p):
+    """Corners and set-piece shots for and against."""
+    return {"Corners": len(events_of(p["events_for"], "set_piece", subtype="corner")),
+            "Set-piece shots": len(_with_build_up(p["shots_for"], "set_piece")),
+            "Set-piece shots conceded": len(_with_build_up(p["shots_against"], "set_piece"))}
 
 
 # ---------- the matchup ----------
 
 def game_plan(us, them):
-    """Match their strengths/weaknesses against ours."""
+    """Line their strengths and weaknesses up against ours (tags that match)."""
     our_s, our_w = strengths(us), weaknesses(us)
     their_s, their_w = strengths(them), weaknesses(them)
     plan = {
@@ -309,19 +306,17 @@ def game_plan(us, them):
 
 def _match(item, candidates):
     """Pair a finding with any of the other team's findings that share a tag."""
-    matches = [c["title"] for c in candidates if set(c["tags"]) & set(item["tags"])]
-    return {"item": item, "matches": matches}
+    found = [c for c in candidates if set(c["tags"]) & set(item["tags"])]
+    return {"item": item, "matches": [c["title"] for c in found], "match_items": found}
 
 
 def _set_piece_notes(us, them):
     notes = []
     for p, label in ((them, "They"), (us, "We")):
-        sp_for = _with_build_up(p["shots_for"], "set_piece")
-        sp_against = _with_build_up(p["shots_against"], "set_piece")
-        corners = events_of(p["events_for"], "set_piece", subtype="corner")
-        notes.append(f"{label} ({p['team']}): {len(corners)} corners logged, "
-                     f"{len(sp_for)} shots from set pieces, "
-                     f"{len(sp_against)} set-piece shots conceded.")
+        n = set_piece_numbers(p)
+        notes.append(f"{label} ({p['team']}): {n['Corners']} corners logged, "
+                     f"{n['Set-piece shots']} shots from set pieces, "
+                     f"{n['Set-piece shots conceded']} set-piece shots conceded.")
     return notes
 
 
@@ -335,16 +330,14 @@ def _first_15(them, their_s, their_w):
     if them["formation_in"]:
         checks.append(f"Do they build up in a {them['formation_in']}?")
     for s in their_s[:3]:
-        checks.append(f"Is this still true: {s['title'].split(' (')[0].lower()}?")
-    for w in their_w[:2]:
-        checks.append(f"Test early: {w['action'].split('.')[0].lower()}.")
+        checks.append(f"Is this still true: {s['title']}?")
     return checks
 
 
 # ---------- small helpers ----------
 
-def _plural(n, word):
-    return f"{n} {word}" + ("" if n == 1 else "s")
+def _poss_frames(p):
+    return p["possession"]["analyzed_team"] + p["possession"]["other_team"]
 
 
 def _main_side(counter):

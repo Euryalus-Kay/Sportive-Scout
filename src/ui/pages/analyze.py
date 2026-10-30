@@ -17,10 +17,9 @@ VIDEO_TYPES = ["mp4", "mov", "m4v", "mkv", "webm", "avi"]
 POSITIONS = ["", "GK", "CB", "LB", "RB", "LWB", "RWB", "DM", "CM", "AM", "LM", "RM", "LW", "RW", "ST", "CF"]
 HOW = ["", "wide", "central", "counter", "set_piece", "long_ball", "press"]
 
-theme.label("Workflow")
-st.markdown("<div class='ss-team'>Analyze film</div>", unsafe_allow_html=True)
-st.caption("Add your team's game and your opponent's game, then let Claude watch them. "
-           "This page always works on your own games, never the demo data.")
+theme.page_title("Workflow", "Analyze film")
+st.caption("Add one game of your team and one of your opponent, then run the analysis. "
+           "This page always uses your own games, not the demo data.")
 
 raw = config.load_raw()
 raw.setdefault("matchup", {})
@@ -160,10 +159,11 @@ with theme.card():
         lines, spent = game_status(game)
         with theme.card():
             c = st.columns([3, 3, 1], vertical_alignment="center")
-            c[0].markdown(f"**{game.get('analyzed_team_name')}** vs {game.get('other_team_name') or '?'}  \n"
-                          f"<span style='color:{theme.MUTED};font-size:.8rem'>{game.get('id')} · film/{game.get('file')}"
-                          f"</span>", unsafe_allow_html=True)
-            c[1].markdown("  \n".join(("✅ " if ok else "⏳ ") + text for text, ok in lines))
+            with c[0]:
+                theme.heading(f"{game.get('id')} · film/{game.get('file')}",
+                              f"{game.get('analyzed_team_name')} vs {game.get('other_team_name') or '?'}")
+            with c[1]:
+                theme.status([(text, theme.GOOD if ok else "#c3c8cf") for text, ok in lines])
             c[2].metric("Spent", f"${spent:.2f}", label_visibility="visible")
             if ready:
                 with st.expander("Edit this game"):

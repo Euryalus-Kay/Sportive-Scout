@@ -20,15 +20,15 @@ def sample():
 def test_profiles_find_the_planted_patterns(sample):
     _, us, them = sample
     assert us["possession_pct"] > 55 and them["formation_out"] == "4-5-1"
-    assert any(f["title"].startswith("Controls possession") for f in strengths(us))
-    assert any(f["title"].startswith("Sit deep") for f in weaknesses(them))
+    assert any(f["label"] == "possession" and f["stat"].endswith("%") for f in strengths(us))
+    assert any(f["label"] == "of defending time in a low block" for f in weaknesses(them))
     assert us["rates"]["presses_90"] > them["rates"]["presses_90"]
     assert them["timeline"].shape == (19, 4) and them["timeline"].sum() > 0
 
 
 def test_findings_point_at_their_moments(sample):
     _, us, _ = sample
-    shots = next(f for f in strengths(us) if f["title"].startswith("Creates a lot of shots"))
+    shots = next(f for f in strengths(us) if f["label"] == "shots per 90")
     assert shots["moments"] and shots["moments"][0]["game_id"] == "sample_riverside_vs_lakeview"
     assert shots["moments"][0]["seconds"] is not None
 
@@ -37,7 +37,16 @@ def test_game_plan_links_the_teams(sample):
     _, us, them = sample
     plan = game_plan(us, them)
     assert plan["exploit"] and plan["counter"] and plan["first_15"]
-    assert any(m["matches"] for m in plan["exploit"])
+    linked = [m for m in plan["exploit"] if m["matches"]]
+    assert linked and linked[0]["match_items"][0]["title"] == linked[0]["matches"][0]
+
+
+def test_insights_are_plain_facts(sample):
+    _, us, them = sample
+    for f in strengths(us) + weaknesses(us) + strengths(them) + weaknesses(them):
+        assert f["stat"] and f["label"] and f["basis"] and f["title"] == f"{f['stat']} {f['label']}"
+        text = f"{f['stat']} {f['label']} {f['basis']}"
+        assert "—" not in text and not text.rstrip().endswith("!")
 
 
 def entry(t, source, events=(), half=1):

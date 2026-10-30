@@ -18,17 +18,8 @@ def page(which):
     p, color = (us, theme.US) if which == "us" else (them, theme.THEM)
     role = "Your team" if which == "us" else "Opponent"
 
-    top = st.columns([3, 2])
-    with top[0]:
-        theme.label(role + (" · demo data" if sample else ""))
-        st.markdown(f"<div class='ss-team'><span class='ss-dot' style='background:{color}'></span>"
-                    f"{theme.esc(p['team'])}</div>", unsafe_allow_html=True)
-    with top[1]:
-        notes = context_notes(p)
-        if notes:
-            with st.popover("Things to keep in mind", icon=":material/info:", width="stretch"):
-                for note in notes:
-                    st.markdown(f"- {note}")
+    theme.page_title(role + (" · demo data" if sample else ""), p["team"], color)
+    theme.chips([(note, "") for note in context_notes(p)])
     if not p["frames_logged"]:
         no_logs(sample)
         return
@@ -42,58 +33,55 @@ def page(which):
 
 def kpis(p):
     poss = p["possession_pct"]
-    spark = [round(v) for v in charts.possession_by_bin(p) if v is not None]
     cols = st.columns(6)
-    cols[0].metric("Possession", f"{poss:.0f}%" if poss is not None else "–", border=True, height="stretch",
-                   chart_data=spark if len(spark) > 2 else None, chart_type="area",
-                   help="Share of frames where this team had the ball (5-minute trend in the chart).")
-    cols[1].metric("Shots", len(p["shots_for"]), border=True, height="stretch",
-                   help=f"{p['rates']['shots_90']:.1f} per 90 minutes")
-    cols[2].metric("Goals", len(p["goals_for"]), border=True, height="stretch")
-    cols[3].metric("Conceded", len(p["goals_against"]), border=True, height="stretch", help="Goals conceded")
-    cols[4].metric("Minutes", f"{p['minutes_covered']:.0f}", border=True, height="stretch",
+    cols[0].metric("Possession", f"{poss:.0f}%" if poss is not None else "–", border=True,
+                   help="Share of frames with the ball.")
+    cols[1].metric("Shots", len(p["shots_for"]), border=True, help=f"{p['rates']['shots_90']:.1f} per 90 minutes")
+    cols[2].metric("Goals", len(p["goals_for"]), border=True)
+    cols[3].metric("Conceded", len(p["goals_against"]), border=True, help="Goals conceded")
+    cols[4].metric("Minutes", f"{p['minutes_covered']:.0f}", border=True,
                    help="Minutes of film analyzed (one frame every 4 seconds).")
-    cols[5].metric("Confidence", f"{p['avg_confidence']:.2f}", border=True, height="stretch",
-                   help="How clearly the film could be read, from 0 to 1. Below 0.5 means treat it as rough.")
+    cols[5].metric("Confidence", f"{p['avg_confidence']:.2f}", border=True,
+                   help="How clearly the film could be read, from 0 to 1. Below 0.5, treat it as rough.")
 
 
 def card(label, title):
     box = theme.card()
     with box:
-        theme.label(label)
-        st.markdown(f"**{title}**")
+        theme.heading(label, title)
     return box
 
 
 # ---------- views ----------
 
 def overview(cfg, p, color, which):
-    with card("Momentum", "Who had the ball, 5 minutes at a time"):
+    with card("Momentum", "Possession by 5 minutes"):
         st.plotly_chart(charts.momentum(p, color), config=charts.CONFIG, width="stretch", key=f"mom_{which}")
-        st.caption("Bars above the line: more of the ball than the opponent. Dots: shots (top = taken, "
-                   "bottom = conceded), stars: goals.")
+        st.caption("Above the line: more of the ball. Dots are shots (top taken, bottom conceded), stars are goals.")
     left, right = st.columns(2, gap="medium")
     with left:
-        findings("Strengths", strengths(p), theme.GOOD if which == "us" else theme.THEM,
-                 "How to stop it" if which == "them" else "Keep doing it", cfg, which)
+        findings("Strengths", strengths(p), theme.GOOD, cfg, which)
     with right:
-        findings("Weaknesses", weaknesses(p), theme.THEM if which == "us" else theme.GOOD,
-                 "How to use it" if which == "them" else "Fix it", cfg, which)
+        findings("Weaknesses", weaknesses(p), theme.BAD, cfg, which)
 
 
-def findings(title, items, tone, action_label, cfg, which):
+def findings(title, items, color, cfg, which):
+    picked = None
     with card(title, f"{len(items)} found" if items else "Nothing clear enough yet"):
         for i, f in enumerate(items):
-            theme.finding_card(f, tone, action_label)
             moments = [m for m in f.get("moments", []) if m.get("game_id")]
+            row, button = st.columns([7, 1], vertical_alignment="center", gap="small")
+            with row:
+                theme.insight_row(f, color)
             if moments:
-                with st.expander(f"See it on film · {len(moments)} moment{'s' if len(moments) > 1 else ''}",
-                                 icon=":material/play_circle:"):
-                    pick = st.pills("Moment", [m["timestamp"] for m in moments], key=f"pill_{which}_{title}_{i}",
-                                    label_visibility="collapsed")
-                    if pick:
-                        m = next(m for m in moments if m["timestamp"] == pick)
-                        moment_viewer(cfg, m["game_id"], m["seconds"], pick, f["title"], f"{which}_{title}_{i}")
+                with button.popover(":material/play_arrow:", help="See it on film"):
+                    pick = st.pills(f"{len(moments)} moments", [m["timestamp"] for m in moments],
+                                    key=f"pill_{which}_{title}_{i}")
+                if pick:
+                    picked = (next(m for m in moments if m["timestamp"] == pick), f, i)
+    if picked:
+        m, f, i = picked
+        moment_viewer(cfg, m["game_id"], m["seconds"], m["timestamp"], f["title"], f"{which}_{title}_{i}")
 
 
 def attacking(cfg, p, color, which):
@@ -101,7 +89,7 @@ def attacking(cfg, p, color, which):
     with left, card("With the ball", "Where they have the ball"):
         st.plotly_chart(charts.heat_map(p["heat_in"], color=color), config=charts.CONFIG, width="stretch",
                         key=f"heat_in_{which}")
-    with right, card("Shots", "Every shot they took (click one to see it)"):
+    with right, card("Shots", "Click a shot to see it"):
         event = st.plotly_chart(charts.shot_map(p["shots_for"]), config=charts.CONFIG, width="stretch",
                                 on_select="rerun", selection_mode="points", key=f"shots_{which}")
     picked = selected_point(event)
@@ -109,11 +97,11 @@ def attacking(cfg, p, color, which):
         moment_viewer(cfg, picked[5], picked[6], picked[0], f"{picked[3].capitalize()} by {picked[2]}, {picked[1]}",
                       f"shot_{which}")
     left, right = st.columns(2, gap="medium")
-    with left, card("Final third", "Which side their attacks come down"):
+    with left, card("Final third", "Possession by side"):
         sides = {side.capitalize(): share(p["attack_side"], side) for side in ("left", "center", "right")}
         st.plotly_chart(charts.bars(sides, color, percent=True), config=charts.CONFIG, width="stretch",
                         key=f"sides_{which}")
-    with right, card("Goals", "Who scores and how"):
+    with right, card("Goals", "By position"):
         st.plotly_chart(charts.bars(p["goals_by_position"], color), config=charts.CONFIG, width="stretch",
                         key=f"gpos_{which}")
         goals_table(p["goals_for"])
@@ -128,10 +116,10 @@ def defending(cfg, p, color, which):
         st.plotly_chart(charts.count_map(p["turnovers"], color=theme.BAD), config=charts.CONFIG, width="stretch",
                         key=f"turn_{which}")
     left, right = st.columns(2, gap="medium")
-    with left, card("Shots conceded", "Where opponents shoot from (click one to see it)"):
+    with left, card("Shots conceded", "Click a shot to see it"):
         event = st.plotly_chart(charts.shot_map(p["shots_against"], against=True), config=charts.CONFIG,
                                 width="stretch", on_select="rerun", selection_mode="points", key=f"against_{which}")
-    with right, card("Goals conceded", "How they concede"):
+    with right, card("Goals conceded", "Minute, scorer and build-up"):
         goals_table(p["goals_against"])
     picked = selected_point(event)
     if picked:
@@ -141,17 +129,17 @@ def defending(cfg, p, color, which):
 
 def shape(cfg, p, color, which):
     left, right = st.columns(2, gap="medium")
-    with left, card("Without the ball", "Defensive shape"):
+    with left, card("Shape", "Without the ball"):
         st.plotly_chart(charts.formation(p["formation_out"], p["block_out_main"], color=color),
                         config=charts.CONFIG, width="stretch", key=f"form_out_{which}")
-    with right, card("With the ball", "Attacking shape"):
+    with right, card("Shape", "With the ball"):
         st.plotly_chart(charts.formation(p["formation_in"], color=color), config=charts.CONFIG, width="stretch",
                         key=f"form_in_{which}")
     left, right = st.columns(2, gap="medium")
-    with left, card("Shapes seen", "Without the ball"):
+    with left, card("Shapes seen", "Without the ball, share of frames"):
         st.plotly_chart(charts.shapes_seen(p["shape_out"], color), config=charts.CONFIG, width="stretch",
                         key=f"shapes_out_{which}")
-    with right, card("How high they defend", "Share of defending frames"):
+    with right, card("Block", "Share of defending frames"):
         blocks = {name.capitalize(): share(p["block_out"], name) for name in ("high", "mid", "low")}
         st.plotly_chart(charts.bars(blocks, color, percent=True), config=charts.CONFIG, width="stretch",
                         key=f"blocks_{which}")
@@ -162,8 +150,7 @@ def players(cfg, p, color, which):
         top = dict(p["players"].most_common(10))
         st.plotly_chart(charts.bars({f"#{k}": v for k, v in top.items()}, color), config=charts.CONFIG,
                         width="stretch", key=f"players_{which}")
-        st.caption("Only numbers that could be read clearly on film are counted, so this shows who is "
-                   "involved, not who is best.")
+        st.caption("Only numbers read clearly on film are counted.")
 
 
 def goals_table(goals):

@@ -13,8 +13,8 @@ from src.ui.theme import BORDER, FONT, INK, MUTED, THEM, US
 from src.visualize import POSITION_GROUPS, formation_positions, parse_shape, position_group
 
 LENGTH, WIDTH = 105, 68
-PITCH_FILL, PITCH_LINE = "#f6f8f5", "#cfd6cc"
-GROUP_COLORS = {"FWD": US, "MID": THEM, "DEF": "#1baf7a"}
+PITCH_FILL, PITCH_LINE = "#ffffff", "#dde1e6"
+GROUP_COLORS = {"FWD": US, "MID": THEM, "DEF": "#16a34a"}
 CONFIG = {"displayModeBar": False}
 
 
@@ -144,9 +144,10 @@ def formation(shape, block=None, title=None, color=US, height=420):
         mode="markers+text", text=[label for _, _, label in spots], textposition="bottom center",
         textfont={"size": 11, "color": INK}, marker={"size": 20, "color": color, "line": {"width": 2.5, "color": "white"}},
         hovertemplate="%{text}<extra></extra>"))
-    fig.add_annotation(x=0, y=-1.2, xanchor="left", yanchor="bottom", showarrow=False,
+    fig.add_annotation(xref="paper", yref="paper", x=0, y=1, xanchor="left", yanchor="bottom", showarrow=False,
                        text=f"<b>{shape}</b>" + (f" · {block} block" if block else ""),
                        font={"size": 12, "color": INK})
+    fig.update_layout(margin={"t": 28})
     return fig
 
 
@@ -184,7 +185,7 @@ def momentum(profile, color=US, height=300):
     shots_against = _per_bin(profile["shots_against"])
     values = [(v - 50) if v is not None else 0 for v in poss]
     fig.add_trace(go.Bar(
-        x=labels, y=values, base=50, marker={"color": [color if v >= 0 else "#c7cbd1" for v in values]},
+        x=labels, y=values, base=50, marker={"color": [color if v >= 0 else "#d5d9de" for v in values]},
         customdata=[[f"{v:.0f}%" if v is not None else "no frames", int(t[i, 2]), shots_for[i], shots_against[i]]
                     for i, v in enumerate(poss)],
         hovertemplate=("<b>%{x}</b><br>Ball: %{customdata[0]}<br>Frames in the final third: %{customdata[1]}"

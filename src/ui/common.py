@@ -67,37 +67,37 @@ def load():
 
 def needs_setup():
     """What pages show before there is a matchup to look at."""
-    theme.empty("No matchup yet. Add your team and your opponent on the Analyze film page, "
-                "or switch the sidebar to the demo data.")
-    st.page_link("src/ui/pages/analyze.py", label="Go to Analyze film", icon=":material/movie:")
+    theme.empty("No matchup yet. Add both teams on Analyze film, or switch the sidebar to demo data.")
+    st.page_link("src/ui/pages/analyze.py", label="Analyze film", icon=":material/arrow_forward:")
 
 
 def no_logs(sample):
     if not sample:
-        theme.empty("Nothing has been analyzed for this matchup yet. Run an analysis on the "
-                    "Analyze film page and the numbers appear here.")
-        st.page_link("src/ui/pages/analyze.py", label="Go to Analyze film", icon=":material/movie:")
+        theme.empty("No analyzed film for this matchup yet.")
+        st.page_link("src/ui/pages/analyze.py", label="Analyze film", icon=":material/arrow_forward:")
 
 
 def hero(cfg, us, them, sample):
-    """The matchup banner with the most important context."""
-    chips = [("Demo data (made up teams)", "warn") if sample else ("Your games", "good")]
+    """The matchup title with the context that matters."""
+    st.html(f'<div class="pm-label">Matchup</div><div class="pm-h1">'
+            f'<span class="pm-dot" style="background:{theme.US}"></span>{theme.esc(us["team"])}'
+            f'<span style="color:{theme.MUTED};font-weight:500;margin:0 12px">vs</span>'
+            f'<span class="pm-dot" style="background:{theme.THEM}"></span>{theme.esc(them["team"])}</div>')
+    items = [("Demo data, made-up teams", "warn")] if sample else []
     for p in (us, them):
         if p["frames_logged"]:
-            chips.append((f"{p['team']}: {p['minutes_covered']:.0f} min analyzed, "
-                          f"confidence {p['avg_confidence']:.2f}", ""))
+            items.append((f"{p['team']} · {_games_text(cfg, p['team'])} · {p['minutes_covered']:.0f} min", ""))
         else:
-            chips.append((f"{p['team']}: not analyzed yet", "warn"))
-    theme.hero(us["team"], them["team"], chips, _games_text(cfg, us["team"]), _games_text(cfg, them["team"]))
+            items.append((f"{p['team']} · not analyzed yet", "warn"))
+    theme.chips(items)
 
 
 def _games_text(cfg, team):
     games = [g for g in cfg["games"] if g.get("analyzed_team_name") == team]
     if not games:
-        return "no game film added"
-    parts = [f"vs {g.get('other_team_name') or '?'}" + (f" ({g['final_score']})" if g.get("final_score") else "")
-             for g in games]
-    return f"{len(games)} game{'s' if len(games) > 1 else ''}: " + ", ".join(parts)
+        return "no film"
+    return ", ".join(f"vs {g.get('other_team_name') or '?'}" + (f" {g['final_score']}" if g.get("final_score") else "")
+                     for g in games)
 
 
 # ---------- the film behind a stat ----------
@@ -106,16 +106,15 @@ def moment_viewer(cfg, game_id, seconds, timestamp, title, key):
     """Show the frame of a moment and offer a short clip of it."""
     game = next((g for g in cfg["games"] if g["id"] == game_id), None)
     with theme.card():
-        theme.label("On film")
-        st.markdown(f"**{title}**")
+        theme.heading(f"Film · {timestamp}", title)
         frame = media.find_frame(game_id, seconds)
         if frame is not None:
-            st.image(frame, caption=f"Frame at {timestamp} in the video", width="stretch")
+            st.image(frame, width="stretch")
         else:
-            st.caption("No extracted frame for this moment" +
-                       (" (the demo data has no film)." if game and not media.film_path(game) else "."))
+            st.caption("No frame saved for this moment" +
+                       (" (demo data has no film)." if game and not media.film_path(game) else "."))
         if game and media.film_path(game):
-            if st.button("Play a 12-second clip", key=f"clip_{key}", icon=":material/play_circle:"):
+            if st.button("Play clip", key=f"clip_{key}", icon=":material/play_arrow:"):
                 with st.spinner("Cutting the clip..."):
                     clip = media.cut_clip(game, seconds)
                 st.video(str(clip))

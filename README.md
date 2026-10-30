@@ -1,8 +1,8 @@
 # Sportive Scout
 
 Soccer film analysis: give it your team's game and your opponent's game, and get heat
-maps, formations, shot maps, strengths and weaknesses for both teams, and a game plan for
-the matchup. Every pattern links back to the moments behind it, so you can check it on film.
+maps, formations, shot maps, and the numbers that stand out for both teams, side by side.
+Every insight lists the moments behind it, so you can check it on film.
 
 ## Setup (once)
 Needs Python 3.10 or newer and ffmpeg (`brew install ffmpeg`).
@@ -22,9 +22,9 @@ Or in VS Code: **Run and Debug → "Sportive Scout app"**. It opens in your brow
 
 | Page | What it shows |
 |---|---|
-| Overview | The matchup at a glance: head-to-head numbers, the plan in short, momentum, every goal |
+| Overview | The matchup at a glance: key numbers side by side, head to head, what stands out, momentum, every goal |
 | Your team / Opponent | Possession, shots, goals, momentum, heat maps, interactive shot maps, shapes, strengths and weaknesses |
-| Game plan | How to attack them, how to stop them, what to fix, set pieces, a first-15-minutes checklist, printable report |
+| Matchup | Their numbers next to ours on the same thing, usual setups, set pieces, printable report |
 | Moments | Every logged event in one list; click one to see the frame and a 12-second clip |
 | Analyze film | Add the matchup and games, upload videos, find kickoff times, run the analysis with live progress |
 | Guide | How to read every chart, in plain language |
@@ -72,10 +72,10 @@ spend is measured per batch and shown on the Analyze film page.
 | | `src/batch_runner.py` | Runs many analysis requests at once, caches and resumes |
 | Pipeline | `src/run.py` | One command: extract, analyze, key moments, reports |
 | Stats | `src/aggregate.py` | Possession, heat maps, shapes, shots, goals by position, turnovers, timeline, per-90 rates |
-| Insights | `src/insights.py` | Strengths, weaknesses, counters and the game plan |
+| Insights | `src/insights.py` | Strengths and weaknesses as plain stats, and how the two teams line up |
 | Visuals | `src/visualize.py` | Field drawings and charts for reports (PNG) |
 | Reports | `src/report.py` | Markdown reports, PNGs and a printable HTML report in `reports/` |
-| Interface | `app.py`, `src/ui/` | The Streamlit app; `src/ui/theme.py` holds the look, `src/ui/charts.py` the interactive charts |
+| Interface | `app.py`, `src/ui/` | The Streamlit app; `src/ui/theme.py` holds the look (clean, Polymarket-style), `src/ui/charts.py` the interactive charts |
 
 ## Tests
 ```bash

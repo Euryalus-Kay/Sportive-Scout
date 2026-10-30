@@ -59,7 +59,7 @@ Sportive-Scout/
     batch_runner.py     # many analysis requests at once, cache + resume
     run.py              # whole pipeline in one command
     aggregate.py        # logs -> team stats ("profiles")
-    insights.py         # strengths, weaknesses, counters, game plan matching
+    insights.py         # strengths and weaknesses as plain stats, matchup pairing
     visualize.py        # PNG field drawings and charts for reports
     report.py           # markdown + printable HTML reports
     media.py            # frame lookup, clips, previews for the app
@@ -104,6 +104,11 @@ All stages built (extraction, logging, stats, insights, reports, interface), plu
 Claude API analyzer, parallel extraction and analysis, the one-command pipeline, the
 multi-page app, and a pytest suite (`python -m pytest`, run by GitHub Actions).
 Next: run the API analyzer on real film with a key and compare its logs to the film.
+
+## Insights, not advice
+The app shows insights only: a number, a short plain line and what it is based on
+(e.g. "59%" / "of final-third possession down the left" / "209 frames"). It does not tell
+the coach what to do. Keep new wording short, factual and free of filler.
 
 ## Ground rules
 - Never invent things that can't be seen. If unsure, say so and lower confidence.

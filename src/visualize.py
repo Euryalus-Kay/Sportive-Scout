@@ -17,14 +17,14 @@ from matplotlib.patches import Arc, Circle, Rectangle
 
 from src.aggregate import TIMELINE_BINS, TIMELINE_STEP, share, timeline_bin
 
-# Colors (validated reference palette, light mode)
-SURFACE = "#fcfcfb"
-LINE = "#c9c8c2"
-TEXT = "#0b0b0b"
-TEXT_2 = "#52514e"
-BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
-GRAY = "#a3a29b"
-BLUES = LinearSegmentedColormap.from_list("blues", ["#eef4fc", "#86b6ef", "#2a78d6", "#0d366b"])
+# Colors (same as the app: white page, one blue accent, orange for the opponent)
+SURFACE = "#ffffff"
+LINE = "#d9dde3"
+TEXT = "#0e1116"
+TEXT_2 = "#6e7681"
+BLUE, ORANGE, AQUA = "#1652f0", "#eb6834", "#16a34a"
+GRAY = "#9aa1aa"
+BLUES = LinearSegmentedColormap.from_list("blues", ["#eef3fe", "#9db6f8", "#1652f0", "#0b2e8a"])
 ORANGES = LinearSegmentedColormap.from_list("oranges", ["#fdf0ea", "#f2a07f", "#eb6834", "#8a3410"])
 
 LENGTH, WIDTH = 105, 68     # pitch size in meters, for drawing

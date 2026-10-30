@@ -4,7 +4,7 @@ from streamlit.testing.v1 import AppTest
 
 from src import config
 
-PAGES = ["overview", "us", "them", "plan", "moments", "analyze", "guide"]
+PAGES = ["overview", "us", "them", "matchup", "moments", "analyze", "guide"]
 
 
 def open_page(page, sample=True):

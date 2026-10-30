@@ -12,8 +12,7 @@ if data is None:
     needs_setup()
     st.stop()
 cfg, us, them, sample = data
-theme.label("Moments" + (" · demo data" if sample else ""))
-st.markdown("<div class='ss-team'>Every moment, on film</div>", unsafe_allow_html=True)
+theme.page_title("Moments" + (" · demo data" if sample else ""), "Every logged moment")
 if not (us["frames_logged"] or them["frames_logged"]):
     no_logs(sample)
     st.stop()
@@ -51,7 +50,7 @@ with theme.card():
     half = cols[2].segmented_control("Half", ["All", "1st", "2nd"], default="All", key="m_half")
     rows = [r for r in rows_for(us) + rows_for(them) if keep(r, team, kinds, half)]
     rows.sort(key=lambda r: (r["Team"], r["seconds"] or 0))
-    st.caption(f"{len(rows)} moments. Click a row to see it.")
+    st.caption(f"{len(rows)} moments · click a row to see it")
     event = st.dataframe(rows, hide_index=True, width="stretch", height=420, on_select="rerun",
                          selection_mode="single-row", key="m_table",
                          column_order=["Team", "Minute", "Event", "Detail", "Film time"],

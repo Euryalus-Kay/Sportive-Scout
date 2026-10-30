@@ -9,7 +9,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write   # push the gh-pages branch
+  pages: write      # ask GitHub Pages to rebuild
 
 concurrency:
   group: pages
@@ -35,3 +36,11 @@ jobs:
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
             commit -q -m "Website from ${GITHUB_SHA::7}"
           git push -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+      - name: Ask GitHub Pages to rebuild
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Pushes made with GITHUB_TOKEN may not start a Pages build on their own.
+        run: |
+          curl -fsS -X POST -H "Authorization: Bearer ${TOKEN}" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pages/builds" \
+            || echo "Could not request a build; Pages will pick up the push on its own."

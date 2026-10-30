@@ -7,7 +7,9 @@ Pass 2: one frame every second around key moments (goals from games.yaml and
 
 Speed: the film is cut into 4-minute chunks and several ffmpeg processes
 decode different chunks at the same time (one per CPU core by default).
-Each frame keeps its exact video time, read back from ffmpeg itself.
+When the video has a keyframe at least every second (most phone and
+streaming video), Pass 1 decodes only keyframes, which is several times
+faster again. Each frame keeps its exact video time, read back from ffmpeg.
 
 Usage:
     python -m src.extract --game GAME_ID               # Pass 1, full game
@@ -36,6 +38,7 @@ FRAME_WIDTH = 768
 GRID_SIZE = 4           # frames per grid (2x2)
 GRIDS_PER_BATCH = 25
 CHUNK_SECONDS = 240     # film per ffmpeg process (a multiple of both intervals)
+KEYFRAME_FAST_MAX = 1.0  # seconds: keyframes this close together allow keyframe-only decoding
 CELL_NAMES = ["top-left", "top-right", "bottom-left", "bottom-right"]
 PTS_TIME = re.compile(r"pts_time:\s*(-?[0-9.]+)")
 
@@ -66,20 +69,37 @@ def split_range(start, duration, chunk=CHUNK_SECONDS):
     return pieces
 
 
-def extract_chunk(video, start, duration, interval, out_dir, prefix, threads=0):
+def keyframe_spacing(video):
+    """Typical seconds between keyframes, measured on a minute from the middle of the video."""
+    middle = max(0.0, video_duration(video) / 2 - 30)
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-skip_frame", "nokey",
+         "-show_entries", "frame=pts_time", "-of", "csv=p=0",
+         "-read_intervals", f"{middle:.1f}%+60", str(video)],
+        capture_output=True, text=True)
+    times = sorted(float(t) for t in out.stdout.split() if t.replace(".", "", 1).isdigit())
+    gaps = sorted(b - a for a, b in zip(times, times[1:]))
+    return gaps[len(gaps) // 2] if gaps else None
+
+
+def extract_chunk(video, start, duration, interval, out_dir, prefix, threads=0, keyframes_only=False):
     """One ffmpeg run: the first frame of every `interval` seconds of a stretch.
 
     Returns a list of (image_path, video_seconds) with the exact time of each
     frame (ffmpeg's showinfo filter prints it), so labels never drift.
+    keyframes_only decodes only the video's keyframes, which is several times
+    faster; it is used when keyframes are close together (see run_pass1).
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     pattern = out_dir / f"{prefix}_%04d.jpg"
     # Keep a frame whenever floor(t / interval) changes: frame i is the first
     # frame at or after start + i*interval, whatever the video's frame rate.
     select = f"select='isnan(prev_t)+gt(floor(t/{interval})\\,floor(prev_t/{interval}))'"
+    # -ss and -t go before -i so ffmpeg only reads this stretch of the file
+    # (an output -t would keep decoding to the end of the video).
     cmd = ["ffmpeg", "-hide_banner", "-nostats", "-loglevel", "info", "-y",
-           "-threads", str(threads), "-ss", f"{start:.3f}", "-i", str(video),
-           "-t", f"{duration:.3f}", "-map", "0:v:0",
+           "-threads", str(threads), *(["-skip_frame", "nokey"] if keyframes_only else []),
+           "-ss", f"{start:.3f}", "-t", f"{duration:.3f}", "-i", str(video), "-map", "0:v:0",
            "-vf", f"{select},showinfo,scale={FRAME_WIDTH}:-2",
            "-fps_mode", "vfr", "-q:v", "4", str(pattern)]
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -98,7 +118,8 @@ def extract_chunk(video, start, duration, interval, out_dir, prefix, threads=0):
     return [fr for fr in frames if fr[1] < start + duration - 1e-3]
 
 
-def extract_segment(video, start, duration, interval, out_dir, prefix, workers=None, progress=None):
+def extract_segment(video, start, duration, interval, out_dir, prefix, workers=None, progress=None,
+                    keyframes_only=False):
     """Pull one frame every `interval` seconds from [start, start+duration).
 
     The stretch is split into chunks that run on several ffmpeg processes at
@@ -109,7 +130,7 @@ def extract_segment(video, start, duration, interval, out_dir, prefix, workers=N
     threads = max(1, (os.cpu_count() or 2) // workers)
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(extract_chunk, video, s, d, interval, out_dir,
-                               f"{prefix}_c{i:03d}", threads): i
+                               f"{prefix}_c{i:03d}", threads, keyframes_only): i
                    for i, (s, d) in enumerate(pieces)}
         results = {}
         for future in as_completed(futures):
@@ -221,16 +242,21 @@ def run_pass1(game, minutes=None, workers=None, progress=None):
     raw_dir = pass_dir / "raw"
     segments = pass1_segments(game, video_duration(video), minutes)
     total = sum(len(split_range(s, d)) for s, d in segments)
+    # Keyframes at most KEYFRAME_FAST_MAX apart: decode only those (much faster),
+    # and each frame is still within that distance of its 4-second mark.
+    spacing = keyframe_spacing(video)
+    fast = spacing is not None and spacing <= KEYFRAME_FAST_MAX
     frames, done = [], 0
     for i, (start, length) in enumerate(segments):
         offset = done
         frames += extract_segment(video, start, length, PASS1_INTERVAL, raw_dir, f"seg{i + 1}",
-                                  workers, _shifted(progress, offset, total))
+                                  workers, _shifted(progress, offset, total), keyframes_only=fast)
         done += len(split_range(start, length))
     batches = build_batches(frames, game, pass_dir, workers)
-    manifest = _write_manifest(game, pass_dir, 1, PASS1_INTERVAL, batches, minutes=minutes)
-    print(f"Pass 1: {len(frames)} frames -> "
-          f"{sum(len(b['grids']) for b in batches)} grids in {len(batches)} batches")
+    manifest = _write_manifest(game, pass_dir, 1, PASS1_INTERVAL, batches, minutes=minutes,
+                               keyframes_only=fast)
+    print(f"Pass 1: {len(frames)} frames -> {sum(len(b['grids']) for b in batches)} grids in "
+          f"{len(batches)} batches" + (" (fast keyframe mode)" if fast else ""))
     return manifest
 
 

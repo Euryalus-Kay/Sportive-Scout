@@ -35,6 +35,14 @@ def test_schema_follows_structured_output_rules():
         assert not {"minimum", "maximum", "minLength", "maxLength", "pattern"} & set(node)
 
 
+def test_schema_stays_inside_the_documented_limits():
+    # Structured outputs allow at most 16 union-type (e.g. nullable) and 24 optional parameters.
+    objects = [n for n in walk(api.RESPONSE_SCHEMA) if n.get("type") == "object"]
+    unions = sum("anyOf" in prop for o in objects for prop in o["properties"].values())
+    optional = sum(len(set(o["properties"]) - set(o["required"])) for o in objects)
+    assert unions <= 16 and optional <= 24
+
+
 def test_request_layout(batch):
     game, b = batch
     req = api.build_request(game, 1, b, "claude-opus-5-5", "low")

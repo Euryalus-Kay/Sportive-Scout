@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 
 from src.aggregate import TIMELINE_BINS, TIMELINE_STEP, share, timeline_bin
 from src.ui.theme import BORDER, FONT, INK, MUTED, THEM, US
-from src.visualize import POSITION_GROUPS, formation_positions, parse_shape, position_group
+from src.positions import POSITION_GROUPS, formation_positions, parse_shape, position_group
 
 LENGTH, WIDTH = 105, 68
 PITCH_FILL, PITCH_LINE = "#ffffff", "#dde1e6"

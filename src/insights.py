@@ -11,7 +11,7 @@ Findings carry `tags`, always written from the ATTACKING team's point of view
 That lets an opponent weakness be matched to one of our strengths.
 """
 from src.aggregate import events_of, share
-from src.visualize import POSITION_GROUPS, position_group
+from src.positions import POSITION_GROUPS, position_group
 
 STRONG, POSSIBLE, ONCE = "strong pattern", "possible pattern", "seen once"
 OPPOSITE = {"left": "right", "right": "left", "center": "center"}

@@ -118,13 +118,11 @@ def duel_tiles(items):
     """Market-style tiles: label, both numbers, a thin two-color bar. items: (label, a, b, fmt)."""
     tiles = []
     for name, a, b, fmt in items:
-        total = (a + b) or 1
         tiles.append(f"""
         <div class="pm-tile"><div class="pm-label">{esc(name)}</div>
-          <div class="pm-pair"><span class="pm-num" style="color:{US}">{fmt.format(a)}</span>
-                               <span class="pm-num" style="color:{THEM}">{fmt.format(b)}</span></div>
-          <div class="pm-bar"><span style="flex:{a / total:.3f};background:{US}"></span>
-                              <span style="flex:{b / total:.3f};background:{THEM}"></span></div>
+          <div class="pm-pair"><span class="pm-num" style="color:{US}">{_show(a, fmt)}</span>
+                               <span class="pm-num" style="color:{THEM}">{_show(b, fmt)}</span></div>
+          {_split_bar(a, b)}
         </div>""")
     st.html(f'<div class="pm-tiles">{"".join(tiles)}</div>')
 
@@ -133,18 +131,31 @@ def compare_rows(rows):
     """value | label | value rows with a thin split bar. rows: (label, a, b, fmt, higher_is_better or None)."""
     out = ['<div class="pm-rows">']
     for name, a, b, fmt, higher_better in rows:
-        lead_a = higher_better is not None and ((a > b) if higher_better else (a < b))
-        lead_b = higher_better is not None and ((b > a) if higher_better else (b < a))
-        total = (a + b) or 1
+        both = a is not None and b is not None
+        lead_a = both and higher_better is not None and ((a > b) if higher_better else (a < b))
+        lead_b = both and higher_better is not None and ((b > a) if higher_better else (b < a))
         out.append(f"""
         <div class="pm-row">
-          <span class="v {'lead' if lead_a else ''}" style="--c:{US}">{fmt.format(a)}</span>
+          <span class="v {'lead' if lead_a else ''}" style="--c:{US}">{_show(a, fmt)}</span>
           <span class="n">{esc(name)}</span>
-          <span class="v r {'lead' if lead_b else ''}" style="--c:{THEM}">{fmt.format(b)}</span>
-          <div class="pm-bar"><span style="flex:{a / total:.3f};background:{US}"></span>
-                              <span style="flex:{b / total:.3f};background:{THEM}"></span></div>
+          <span class="v r {'lead' if lead_b else ''}" style="--c:{THEM}">{_show(b, fmt)}</span>
+          {_split_bar(a, b)}
         </div>""")
     st.html("".join(out) + "</div>")
+
+
+def _show(value, fmt):
+    """A number in its format, or a dash when there is no data for that team."""
+    return "–" if value is None else fmt.format(value)
+
+
+def _split_bar(a, b):
+    """Thin two-color bar; gray when either side has no data."""
+    if a is None or b is None:
+        return f'<div class="pm-bar"><span style="flex:1;background:{BORDER}"></span></div>'
+    total = (a + b) or 1
+    return (f'<div class="pm-bar"><span style="flex:{a / total:.3f};background:{US}"></span>'
+            f'<span style="flex:{b / total:.3f};background:{THEM}"></span></div>')
 
 
 def legend(us_name, them_name):

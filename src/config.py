@@ -26,15 +26,27 @@ SAMPLE_GAMES_FILE = SAMPLE_DIR / "games.yaml"
 SAMPLE_LOGS_DIR = SAMPLE_DIR / "logs"
 SAMPLE_REPORTS_DIR = SAMPLE_DIR / "reports"
 
+DEFAULT_HALF_LENGTH = 45     # minutes; high school games are usually 40
+LATE_MINUTES = 15            # goals in the last 15 minutes of a game count as "late"
+
 TEAMS = ("analyzed_team", "other_team")
 STRENGTHS = ("weaker", "similar", "stronger")
 DIRECTIONS = ("left", "right")
+CAMERAS = ("follow", "broadcast", "fixed")   # follow = an automatic camera that tracks the ball
 
 
 def project_path(path):
     """A path from a manifest (stored relative to the project folder) as a full path."""
     path = Path(path)
     return path if path.is_absolute() else ROOT / path
+
+
+def _number(value):
+    """A number from yaml or a form (int, float or numeric text), else None."""
+    try:
+        return float(value) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
 
 
 def parse_time(value):
@@ -100,6 +112,7 @@ def _prepare_game(game):
     game.setdefault("opponent_strength", "similar")
     game.setdefault("playoff", False)
     game.setdefault("notes", "")
+    game["half_length"] = _number(game.get("half_length")) or DEFAULT_HALF_LENGTH
     game["kickoff_s"] = parse_time(game.get("kickoff_time")) or 0.0
     game["first_half_end_s"] = parse_time(game.get("first_half_end"))
     game["second_half_start_s"] = parse_time(game.get("second_half_start"))
@@ -142,6 +155,12 @@ def _game_problems(g, matchup):
         out.append("attacking_direction must be left or right.")
     if g.get("opponent_strength") not in STRENGTHS:
         out.append("opponent_strength must be weaker, similar or stronger.")
+    if g.get("detail") not in (None, "", "standard", "high"):
+        out.append("detail must be standard or high.")
+    if g.get("camera") not in (None, "", *CAMERAS):
+        out.append("camera must be follow, broadcast or fixed (or left empty).")
+    if not 10 <= g.get("half_length", DEFAULT_HALF_LENGTH) <= 60:
+        out.append("half_length must be the minutes in one half, like 45 (or 40 for high school).")
     kickoff, end, second = g["kickoff_s"], g["first_half_end_s"], g["second_half_start_s"]
     if second is not None and second <= kickoff:
         out.append("second_half_start must be after kickoff_time.")
@@ -170,12 +189,21 @@ def half_for(game, video_s):
     return 1
 
 
-def game_minute(game, video_s):
-    """Game clock minute for a video time (2nd half starts at 45')."""
-    half = half_for(game, video_s)
+def game_minute(game, video_s, half=None):
+    """Game clock minute for a video time. The 2nd half starts at the half length (45' or 40').
+
+    `half` can be passed when it is already known (a logged frame keeps its half).
+    """
+    half = half_for(game, video_s) if half is None else half
     if half == 2:
-        return 45 + (video_s - game["second_half_start_s"]) / 60
+        return game.get("half_length", DEFAULT_HALF_LENGTH) + (video_s - game["second_half_start_s"]) / 60
     return max(0.0, (video_s - game["kickoff_s"]) / 60)
+
+
+def is_late(game, minute):
+    """True for a game minute in the last LATE_MINUTES of regulation time."""
+    length = 2 * game.get("half_length", DEFAULT_HALF_LENGTH)
+    return minute is not None and minute >= length - LATE_MINUTES
 
 
 def attacking_direction(game, half):

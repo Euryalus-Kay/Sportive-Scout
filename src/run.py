@@ -67,7 +67,7 @@ def planned_grids(game, minutes=None):
     """Pass 1 grids a game will have (from the video length), before extracting."""
     video = config.FILM_DIR / game["file"]
     seconds = sum(length for _, length in extract.pass1_segments(game, extract.video_duration(video), minutes))
-    return math.ceil(seconds / extract.PASS1_INTERVAL / extract.GRID_SIZE)
+    return math.ceil(seconds / extract.PASS1_INTERVAL / extract.layout(game)[1])
 
 
 # ---------- running ----------
@@ -88,7 +88,8 @@ def analyze_game(game, opts, progress=None, stop=None, confirm=None, analyzer=No
                           progress=lambda d, t: emit({"stage": "extract1", "done": d, "total": t}))
 
     grids = pending_grids(game["id"], 1)
-    if confirm and grids and not confirm(estimate_cost(grids, opts.model, opts.grids_per_chunk), grids):
+    if confirm and grids and not confirm(estimate_cost(grids, opts.model, opts.grids_per_chunk,
+                                             extract.layout(game)[1]), grids):
         summary["stopped"] = True
         return summary
     if not _analyze(game, 1, analyzer, opts, emit, stop, summary) or not opts.pass2:
@@ -161,9 +162,10 @@ def print_estimate(games, opts):
     total = 0.0
     for game in games:
         grids = pending_grids(game["id"], 1) if pass1_ready(game, opts.minutes) else planned_grids(game, opts.minutes)
-        cost = estimate_cost(grids, opts.model, opts.grids_per_chunk)
+        per = extract.layout(game)[1]
+        cost = estimate_cost(grids, opts.model, opts.grids_per_chunk, per)
         total += cost
-        print(f"{game['id']}: {grids} grids ({grids * 4} frames) left for Pass 1, about ${cost:.2f}")
+        print(f"{game['id']}: {grids * per} frames left for Pass 1, about ${cost:.2f}")
     print(f"Total with {MODELS[opts.model]['label']}: about ${total:.2f} "
           "(Pass 2 key moments usually add 10-20%). This is a rough estimate.")
 

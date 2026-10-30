@@ -15,7 +15,6 @@ from src.visualize import POSITION_GROUPS, position_group
 
 STRONG, POSSIBLE, ONCE = "strong pattern", "possible pattern", "seen once"
 OPPOSITE = {"left": "right", "right": "left", "center": "center"}
-LATE_MINUTE = 75            # goals from here on count as "late"
 
 
 def evidence_label(count):
@@ -145,7 +144,7 @@ def strengths(p):
     late = _late(p["goals_for"])
     if len(late) >= 2:
         out.append(finding(
-            "strength", f"{len(late)}", f"goals after {LATE_MINUTE}'", f"of {len(p['goals_for'])} goals",
+            "strength", f"{len(late)}", "goals in the last 15 minutes", f"of {len(p['goals_for'])} goals",
             len(late), items=late, tags=["late_goals"],
             action="Make defensive changes early and keep our shape late."))
 
@@ -239,7 +238,7 @@ def weaknesses(p):
     late = _late(p["goals_against"])
     if len(late) >= 2:
         out.append(finding(
-            "weakness", f"{len(late)}", f"goals conceded after {LATE_MINUTE}'",
+            "weakness", f"{len(late)}", "goals conceded in the last 15 minutes",
             f"of {len(p['goals_against'])} conceded", len(late), items=late, tags=["late_goals"],
             action="Keep the pressure on in the last 20 minutes."))
     return out
@@ -272,7 +271,7 @@ def setup(p):
     """The team's usual setup as (label, value) facts."""
     side, pct = _main_side(p["attack_side"])
     return [("Shape without the ball", p["formation_out"] or "not clear"),
-            ("Defensive block", (p["block_out_main"] or "not clear").capitalize()),
+            ("Defensive block", p["block_out_main"].capitalize() if p["block_out_main"] else "not clear"),
             ("Shape with the ball", p["formation_in"] or "not clear"),
             ("Main attacking side", f"{side.capitalize()} ({pct:.0f}%)" if side else "not clear"),
             ("Possession", f"{p['possession_pct']:.0f}%" if p["possession_pct"] is not None else "not logged")]
@@ -361,7 +360,8 @@ def _with_build_up(shots, build_up):
 
 
 def _late(goals):
-    return [g for g in goals if (g.get("game_minute") or 0) >= LATE_MINUTE]
+    # "late" is set per game in aggregate.py (the last 15 minutes of 80 or 90).
+    return [g for g in goals if g.get("late")]
 
 
 def _key_player(players):

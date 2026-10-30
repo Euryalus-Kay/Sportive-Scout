@@ -3,7 +3,7 @@ from collections import Counter
 import pytest
 
 from src import config, report, visualize
-from src.aggregate import _collect_events, _pass2_windows, game_stats, in_box, team_profile
+from src.aggregate import _collect_events, _pass2_windows, game_stats, in_box, retimed, team_profile
 from src.insights import _key_player, game_plan, strengths, weaknesses
 from src.ui import charts
 
@@ -110,3 +110,34 @@ def test_reports(project, sample):
     report.build(cfg, config.SAMPLE_LOGS_DIR, config.REPORTS_DIR)
     for name in ("game_plan.md", "riverside_fc_report.md", "scouting_report.html"):
         assert (config.REPORTS_DIR / name).exists()
+
+
+def test_minutes_follow_games_yaml_not_the_stored_log(project):
+    game = config._prepare_game({"id": "g", "kickoff_time": "00:00", "second_half_start": "50:00", "half_length": 40})
+    log = [dict(entry(51 * 60, "pass1", [{"type": "shot", "team": "analyzed_team", "outcome": "goal"}], half=2),
+                game_minute=46.0)]               # stored with the old 45-minute rule
+    goal = _collect_events(game, retimed(game, log))[0]
+    assert goal["game_minute"] == pytest.approx(41.0) and not goal["late"]
+
+
+def test_a_film_with_both_teams_counts_for_both(project):
+    from src.analyzer import log_path, write_json
+    cfg = {"matchup": {"our_team": "A", "opponent": "B"}, "games": [config._prepare_game(
+        {"id": "ab", "file": "ab.mp4", "analyzed_team_name": "A", "other_team_name": "B",
+         "final_score": "2-1", "opponent_strength": "weaker", "kickoff_time": "00:00"})]}
+    shot = {"type": "shot", "team": "other_team", "outcome": "on_target", "xy": [90, 20]}
+    first = dict(entry(60, "pass1", [shot]), view="wide", possession="analyzed_team", confidence=0.8,
+                 ball_zone=[6, 1], analyzed_team_shape="4-4-2", other_team_shape="3-5-2", players=["10"],
+                 analyzed_team_block="high", other_team_block="low")
+    config.LOGS_DIR.mkdir(exist_ok=True)
+    write_json(log_path("ab"), [first])
+    a, b = team_profile(cfg, "A"), team_profile(cfg, "B")
+    assert a["possession_pct"] == 100 and b["possession_pct"] == 0
+    assert b["heat_out"][3, 0] == 1                      # A's ball at B's back-right corner
+    seen = [x for x in b["shots_for"] if not x.get("from_score")]
+    assert len(seen) == 1 and seen[0]["xy"] == [10, 80]
+    assert len(a["goals_for"]) == 2 and len(b["goals_for"]) == 1    # the 2-1 score, goals not caught on film
+    assert b["shape_out"]["3-5-2"] == 1 and not b["players"]
+    assert b["games"][0]["final_score"] == "1-2" and b["games"][0]["opponent_strength"] == "stronger"
+    cfg["games"].append(dict(cfg["games"][0], id="ba", analyzed_team_name="B", other_team_name="A"))
+    assert len(team_profile(cfg, "B")["games"]) == 1     # same video analyzed for B: no double count

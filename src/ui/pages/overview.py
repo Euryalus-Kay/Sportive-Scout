@@ -15,8 +15,9 @@ if not (us["frames_logged"] or them["frames_logged"]):
     no_logs(sample)
     st.stop()
 
-r, s = us["rates"], them["rates"]
-goals = lambda p, key: len(p[key]) * p["per90"]
+# A team without analyzed film shows dashes, not zeros.
+r, s = ({k: (v if p["frames_logged"] else None) for k, v in p["rates"].items()} for p in (us, them))
+goals = lambda p, key: len(p[key]) * p["per90"] if p["frames_logged"] else None
 st.space("small")
 theme.duel_tiles([
     ("Possession", r["possession"], s["possession"], "{:.0f}%"),
@@ -65,9 +66,9 @@ with right, theme.card():
 
 with theme.card():
     theme.heading("Goals", "Every goal in the analyzed film")
-    rows = [{"Team": p["team"], "Minute": f"{int(g['game_minute']) + 1}'" if g.get("game_minute") is not None else "?",
+    rows = [{"Team": p["team"], "Minute": f"{int(g['game_minute']) + 1}'" if g.get("game_minute") is not None else "time unknown",
              "Scorer": g.get("position") or "unknown", "Build-up": (g.get("build_up") or "unknown").replace("_", " "),
-             "Film time": g.get("timestamp") or "?"}
+             "Film time": g.get("timestamp") or "not caught on film"}
             for p in (us, them) for g in p["goals_for"]]
     if rows:
         st.dataframe(rows, hide_index=True, width="stretch")

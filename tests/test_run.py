@@ -52,4 +52,4 @@ def test_declining_the_cost_stops_before_spending(games):
 def test_estimate_before_extracting(games, capsys):
     run.print_estimate(games["games"], run.Options())
     out = capsys.readouterr().out
-    assert "blue_game: 11 grids (44 frames)" in out and "Total with" in out
+    assert "blue_game: 44 frames left" in out and "Total with" in out

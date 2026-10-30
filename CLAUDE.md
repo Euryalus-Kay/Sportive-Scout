@@ -1,10 +1,17 @@
-# Soccer Scout — Project Guide for Claude Code
+# Sportive Scout — Project Guide for Claude Code
 
 ## What this is
 A personal soccer film analysis tool. The user (a high school student) wants to analyze
 his own team's game film and an opponent's film, then get a scouting report and a
 matchup game plan: formations, tendencies, strengths, weaknesses, standout players,
-and heat maps.
+and heat maps. Until the user has their own team's film, testing uses pro matches
+(Champions League, World Cup) — pick two teams, one video of each.
+
+The goal is depth coaches can't get from just watching film: ball heat maps (overall,
+in possession, out of possession), formation in and out of possession (dots with
+position labels, no player numbers needed), shot maps, which positions scored the goals,
+then strengths/weaknesses for both teams and how to counter each strength and exploit
+each weakness.
 
 Later this code will become a paid web app for coaches (Next.js on Vercel + a Python
 worker using the Claude API). So keep the code clean and modular, and keep the
@@ -17,97 +24,63 @@ how to run it, and what to check. Avoid unexplained jargon.
 This personal version runs on the user's Claude Pro plan through Claude Code.
 - Do NOT call the Anthropic API or ask for an API key.
 - YOU (Claude Code) look at the frame images directly and write the logs.
-- Still, put the analysis logic behind a clear interface (e.g. `analyzer.py` with a
-  `ManualClaudeCodeAnalyzer` now) so an `ApiAnalyzer` (Haiku / Sonnet) can be added later.
+- The analysis logic sits behind `Analyzer` in `src/analyzer.py`
+  (`ManualClaudeCodeAnalyzer` now) so an `ApiAnalyzer` (Haiku / Sonnet) can be added later.
 
 Because Pro has usage limits, be efficient: small images, frames combined into grids,
 work in batches, save progress after every batch so work can stop and resume.
 
 ## Folder structure
 ```
-soccer-scout/
-  CLAUDE.md
-  README.md
-  requirements.txt
-  games.yaml            # info about each game (user fills this in)
+Sportive-Scout/
+  CLAUDE.md, README.md, requirements.txt
+  app.py                # Streamlit interface (streamlit run app.py)
+  games.yaml            # matchup + info about each game (user fills this in)
   film/                 # raw videos (git-ignored)
   frames/               # extracted frames and grids (git-ignored)
   logs/                 # JSON moment logs + progress files
-  reports/              # markdown reports + heat map PNGs
+  reports/              # markdown reports + PNGs
+  sample/               # FAKE demo games (games.yaml committed; logs/reports generated)
   src/
-    extract.py          # ffmpeg frame extraction + grid building
-    analyzer.py         # analysis interface
-    aggregate.py        # turns logs into stats
-    visualize.py        # heat maps and charts (matplotlib)
-    report.py           # report + game plan helpers
+    config.py           # loads games.yaml, video time <-> half / game minute
+    extract.py          # Pass 1 (every 4s) + Pass 2 (every 1s around goals/shots)
+    analyzer.py         # analysis interface + log/progress files
+    aggregate.py        # logs -> team stats ("profiles")
+    visualize.py        # field drawings: formation, heat maps, shot maps, charts
+    insights.py         # strengths, weaknesses, counters, game plan matching
+    report.py           # markdown reports + PNGs
+    sample_data.py      # generates the fake demo logs
 ```
-`.gitignore` must include: `film/`, `frames/`, `.env`, `__pycache__/`, `.venv/`.
 
-## games.yaml (create a template the user fills in)
-For each video:
-- `file`: video filename in film/
-- `team_analyzed`: "us" or "opponent"
-- `our_team_name`, `opponent_name`
-- `kit_colors`: team being analyzed vs. the other team (needed to tell teams apart)
-- `attacking_direction`: which side of the screen (left/right) the analyzed team
-  attacks in the 1st half
-- `final_score`, `goal_times`, `playoff` (true/false)
-- `notes`: lineup info, known players and jersey numbers, anything else
+## games.yaml
+`matchup: {our_team, opponent}` = the game being prepared for. Then one entry per video:
+`id`, `file`, `team_analyzed` (us/opponent), `analyzed_team_name`, `other_team_name`,
+`kit_colors`, `attacking_direction` (screen side in the 1st half), `kickoff_time`,
+`first_half_end`, `second_half_start` (video times), `final_score`,
+`goal_times` (list of `{time, team, position, how}`), `playoff`,
+`opponent_strength` (weaker/similar/stronger), `notes`.
 
-## Stages — build ONE stage at a time, then stop and let the user test
+## How to log a batch (the analysis step)
+1. `python -m src.analyzer next --game GAME_ID [--pass 2]` — lists the grids, cell
+   timestamps, kit colors and attacking direction per half.
+2. Look at each grid image. Each cell is labeled `video time | half game-minute`.
+3. Write a JSON list (one entry per frame) to a scratch file, in SCREEN coordinates —
+   the code flips to team-relative coordinates itself. Format is in the
+   `src/analyzer.py` docstring: `timestamp`, `view` (wide/close/replay/other),
+   `possession`, `ball_screen` [col 1-6 left->right, row 1-4 top->bottom],
+   optional `ball_xy_screen` [0-100, 0-100], shapes + blocks, `events`, `players`,
+   `confidence`, `note`.
+   - Log each event ONCE, on the frame where it happens.
+   - Shots: `{"type": "shot", "team", "outcome": goal|on_target|off_target|blocked,
+     "position", "build_up": wide|central|counter|set_piece|long_ball|press}`.
+   - Turnovers: `team` = the team that LOST the ball.
+   - Set pieces: `{"type": "set_piece", "subtype": corner|free_kick|throw_in|penalty}`.
+4. `python -m src.analyzer save --game GAME_ID --batch N --input FILE [--pass 2]`.
+5. After Pass 1, run `python -m src.extract --game GAME_ID --pass 2` and log the key moments.
 
-### Stage 1: Setup + frame extraction
-- Check that Python and ffmpeg are installed; help install if not.
-- Create the folder structure, requirements.txt, .gitignore, games.yaml template.
-- `extract.py`: extract 1 frame every 4 seconds, resized to 768px wide.
-- Combine every 4 consecutive frames into one 2x2 grid image, each cell labeled
-  with its game timestamp (mm:ss).
-- Group grids into numbered batches of 25.
-- Add a `--minutes N` option to only process the first N minutes (for testing).
-- Test on the first 5 minutes of one video.
-
-### Stage 2: Moment logging (you look at the grids)
-For each grid, write one JSON entry per frame to `logs/<game>.json`:
-- `timestamp`
-- `possession`: "analyzed_team" | "other_team" | "contested" | "dead_ball"
-- `ball_zone`: on a 6x4 grid (6 zones along the length, 4 across the width),
-  stored relative to the analyzed team's attacking direction (zone 6 = their attacking end).
-  Use attacking_direction from games.yaml and flip it at halftime.
-- `analyzed_team_shape` and `other_team_shape` (e.g. "4-4-2 low block", "high press")
-- `events`: list of shot, goal, turnover, set_piece, cross, press, long_ball, etc.
-- `players`: any readable jersey numbers involved
-- `confidence`: 0-1 (be honest; wide footage makes some things unclear)
-- `note`: short description of anything tactically interesting
-
-Save `logs/<game>_progress.json` after every batch so the user can stop and resume.
-Do a test on 5 minutes first and let the user compare against the film.
-
-### Stage 3: Stats + visualizations
-- `aggregate.py`: possession %, events by zone, turnovers by zone, shots by zone,
-  shape frequencies, most-involved jersey numbers.
-- `visualize.py`: ball-location heat map on a drawn soccer field (6x4 grid),
-  turnover map, shot map, possession chart. Save PNGs to reports/.
-
-### Stage 4: Reports
-For each team, write `reports/<team>_report.md`:
-- Likely formation(s) and how shape changes in and out of possession
-- Attacking patterns (which side, build-up style, how chances are created)
-- Defensive patterns and weaknesses (where they lose the ball, where they concede)
-- Set pieces
-- Standout players (by jersey number when readable)
-- Label every tendency: **strong pattern** (5+ times), **possible pattern** (2-4),
-  or **seen once**, with timestamps as evidence
-- Account for game context: score, playoff stakes, quality of opponent
-
-Then write `reports/game_plan.md` comparing the two teams:
-- Opponent weaknesses we can exploit, matched to our strengths
-- Opponent strengths we must watch out for, matched to our weaknesses
-- Set piece notes and key things to check in the first 10-15 minutes of the game
-- Embed the heat maps
-
-### Stage 5: Simple local interface (optional)
-A Streamlit page to choose games, edit context, run stages, and view reports
-and heat maps. Keep it simple.
+## Build status
+All stages built (extraction, logging, stats, insights, reports, interface).
+Next: test on real pro film — 5-minute extraction + logging test, user compares to film.
 
 ## Ground rules
 - Never invent things that can't be seen. If unsure, say so and lower confidence.

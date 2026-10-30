@@ -1,0 +1,55 @@
+# Sportive Scout game info. Fill this in for each video in film/.
+#
+# matchup = the game you are preparing for.
+#   our_team: your team (for testing with pro film, pick any team, e.g. "Argentina")
+#   opponent: the team you will play (e.g. "France")
+#
+# games = one entry per video. Each video is analyzed from ONE team's point of
+# view (the "analyzed team"). Use one video of our_team and one of opponent.
+#
+# Times are VIDEO times, as shown in your video player ("mm:ss" or "h:mm:ss").
+
+matchup:
+  our_team: "Team A"
+  opponent: "Team B"
+
+games:
+  - id: team_a_game                   # short name, no spaces (used for file names)
+    file: team_a_game.mp4             # video file name inside film/
+    team_analyzed: us                 # us | opponent
+    analyzed_team_name: "Team A"      # must match matchup.our_team or matchup.opponent
+    other_team_name: "Their opponent in this video"
+    kit_colors:
+      analyzed_team: "white shirts, black shorts"
+      other_team: "red shirts, red shorts"
+    attacking_direction: right        # side of the SCREEN the analyzed team attacks in the 1st half
+    kickoff_time: "00:00"             # video time when the 1st half kicks off
+    first_half_end: ""                # video time the 1st half ends (optional, skips halftime)
+    second_half_start: ""             # video time the 2nd half kicks off
+    final_score: ""                   # analyzed team first, e.g. "2-1"
+    goal_times:                       # every goal in the video, so none are missed
+      # - {time: "23:10", team: analyzed_team, position: ST, how: counter}
+      # team: analyzed_team | other_team
+      # position (optional): GK, CB, LB, RB, DM, CM, AM, LW, RW, ST ...
+      # how (optional): wide | central | counter | set_piece | long_ball | press
+    playoff: false
+    opponent_strength: similar        # weaker | similar | stronger (than the analyzed team)
+    notes: ""
+
+  - id: team_b_game
+    file: team_b_game.mp4
+    team_analyzed: opponent
+    analyzed_team_name: "Team B"
+    other_team_name: "Their opponent in this video"
+    kit_colors:
+      analyzed_team: ""
+      other_team: ""
+    attacking_direction: right
+    kickoff_time: "00:00"
+    first_half_end: ""
+    second_half_start: ""
+    final_score: ""
+    goal_times: []
+    playoff: false
+    opponent_strength: similar
+    notes: ""

@@ -33,9 +33,16 @@
   <script type="module">
     import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@1.12.0/build/stlite.js";
 
+    // ?analysis=<name> opens a published analysis from ./analyses/<name>.zip (games.yaml + logs).
+    const archives = [{ url: "./app.zip", format: "zip", options: {} }];
+    const analysis = new URLSearchParams(location.search).get("analysis");
+    if (analysis && /^[a-z0-9-]+$/.test(analysis)) {
+      archives.push({ url: `./analyses/${analysis}.zip`, format: "zip", options: {} });
+    }
+
     mount({
       entrypoint: "app.py",
-      archives: [{ url: "./app.zip", format: "zip", options: {} }],
+      archives,
       requirements: ["plotly", "pyyaml", "matplotlib"],
       streamlitConfig: { "client.toolbarMode": "minimal", "browser.gatherUsageStats": false },
     }, document.getElementById("root"));

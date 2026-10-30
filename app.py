@@ -36,8 +36,10 @@ page = st.navigation(pages, position="top")
 
 def open_analysis():
     """Website app: open an analysis pack (games.yaml + logs). It is read in this browser tab only."""
-    if has_real_logs():
+    if st.session_state.get("pack_opened"):
         st.caption("Your analysis is open in this tab only. Nothing was uploaded.")
+    elif has_real_logs():
+        st.caption("Showing a shared analysis. Switch to the demo below, or open your own file.")
     else:
         st.caption(f"Demo with made-up teams. Open your own analysis below, or run the app on your "
                    f"computer to analyze film ([how]({REPO}#setup-once)).")

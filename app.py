@@ -9,6 +9,7 @@ import streamlit as st
 
 from src import config, jobs
 from src.api_analyzer import api_key_available
+from src.pack import open_pack
 from src.ui import theme
 from src.ui.common import has_real_logs, use_sample
 
@@ -32,13 +33,33 @@ pages = {
 }
 page = st.navigation(pages, position="top")
 
+
+def open_analysis():
+    """Website app: open an analysis pack (games.yaml + logs). It is read in this browser tab only."""
+    if has_real_logs():
+        st.caption("Your analysis is open in this tab only. Nothing was uploaded.")
+    else:
+        st.caption(f"Demo with made-up teams. Open your own analysis below, or run the app on your "
+                   f"computer to analyze film ([how]({REPO}#setup-once)).")
+    pack = st.file_uploader("Open your analysis", type="zip", key="pack",
+                            help="The .zip made by `python -m src.pack`. It never leaves this browser tab.")
+    if pack and st.session_state.get("pack_opened") != (pack.name, pack.size):
+        try:
+            open_pack(pack.getvalue())
+        except (ValueError, KeyError, OSError) as err:
+            st.error(f"Couldn't open it: {err}")
+            return
+        st.session_state.pack_opened = (pack.name, pack.size)
+        st.session_state.use_sample = False
+        st.rerun()
+
+
 with st.sidebar:
     st.html('<div style="font-weight:700;font-size:1.05rem;letter-spacing:-.01em">Sportive Scout</div>'
             '<div class="pm-label" style="margin-top:2px">Soccer film scouting</div>')
     if config.IN_BROWSER:
-        st.caption(f"Browser demo with made-up teams. To scout your own film, run the app on your "
-                   f"computer ([how]({REPO}#setup-once)).")
-    else:
+        open_analysis()
+    if not config.IN_BROWSER or has_real_logs():
         sample = use_sample()
         choice = st.radio("Data", ["My games", "Demo data (fake teams)"], index=1 if sample else 0,
                           help="The demo uses made-up teams so you can try the app before adding film.")
@@ -47,6 +68,7 @@ with st.sidebar:
             st.rerun()
         if not sample and not has_real_logs():
             st.caption("Nothing analyzed yet. Start on Analyze film.")
+    if not config.IN_BROWSER:
         st.divider()
         theme.heading("Status")
         job = jobs.current()

@@ -4,8 +4,8 @@ Every position here is relative to the analyzed team in that game:
 zone x 1-6 (6 = the end they attack), zone y 1-4 (1 = their left touchline),
 and xy 0-100 the same way.
 
-A team "profile" combines every game in games.yaml where that team is the
-analyzed team.
+A team "profile" combines every game in games.yaml that shows that team: as
+the analyzed team, or as the other team (the same log, mirrored).
 """
 from collections import Counter
 
@@ -39,9 +39,78 @@ def side_of(y):
 
 # ---------- one game ----------
 
+SWAP = {"analyzed_team": "other_team", "other_team": "analyzed_team"}
+SWAP_STRENGTH = {"weaker": "stronger", "stronger": "weaker", "similar": "similar"}
+
+
+def mirror_game(game):
+    """The same film seen from the other team's side: names, kits, goals and directions swapped.
+
+    One analyzed video holds both teams, so a team that is the *other* team in a film
+    still gets that film in its profile, read from the same log (see mirror_entry).
+    """
+    m = dict(game)
+    m["analyzed_team_name"], m["other_team_name"] = game.get("other_team_name"), game.get("analyzed_team_name")
+    kits = game.get("kit_colors") or {}
+    m["kit_colors"] = {"analyzed_team": kits.get("other_team"), "other_team": kits.get("analyzed_team")}
+    m["attacking_direction"] = "left" if game.get("attacking_direction", "right") == "right" else "right"
+    m["opponent_strength"] = SWAP_STRENGTH.get(game.get("opponent_strength"), "similar")
+    m["goal_times"] = [{**g, "team": SWAP.get(g.get("team", "analyzed_team"), "other_team")}
+                       for g in game.get("goal_times", [])]
+    score = str(game.get("final_score") or "")
+    m["final_score"] = "-".join(reversed(score.split("-"))) if score.count("-") == 1 else score
+    m["mirrored"] = True
+    return m
+
+
+def mirror_entry(e):
+    """One logged frame from the other team's side: the pitch turns 180 degrees, team labels swap."""
+    flip = lambda xy: [100 - xy[0], 100 - xy[1]] if xy else None
+    return {
+        **e,
+        "possession": SWAP.get(e.get("possession"), e.get("possession")),
+        "ball_zone": [7 - e["ball_zone"][0], 5 - e["ball_zone"][1]] if e.get("ball_zone") else None,
+        "ball_xy": flip(e.get("ball_xy")),
+        "analyzed_team_shape": e.get("other_team_shape"), "other_team_shape": e.get("analyzed_team_shape"),
+        "analyzed_team_block": e.get("other_team_block"), "other_team_block": e.get("analyzed_team_block"),
+        "events": [{**ev, "team": SWAP.get(ev.get("team"), ev.get("team")),
+                    **({"xy": flip(ev["xy"])} if ev.get("xy") else {})} for ev in e.get("events", [])],
+        "players": [],      # jersey numbers aren't tied to a team, so they stay with the analyzed side
+    }
+
+
+def team_games(cfg, team_name):
+    """Games in a team's profile: films where it's the analyzed team, then films where it's the
+    other team (mirrored), unless that video is already in the list."""
+    direct = [g for g in cfg["games"] if g.get("analyzed_team_name") == team_name]
+    files = {g.get("file") for g in direct}
+    return direct + [mirror_game(g) for g in cfg["games"]
+                     if g.get("other_team_name") == team_name and g.get("file") not in files]
+
+
+def retimed(game, log):
+    """Log entries with game minutes worked out from games.yaml as it is now.
+
+    Minutes are stored when a frame is logged; recomputing them means a corrected
+    kickoff time or half length applies without analyzing the film again.
+    """
+    end = game.get("game_end_s")
+    out = []
+    for e in log:
+        if e.get("video_seconds") is not None and e.get("half") in (1, 2):
+            if end is not None and e["video_seconds"] > end:
+                e = {**e, "half": 0}    # after the final whistle: not part of the game
+            else:
+                e = {**e, "game_minute": config.game_minute(game, e["video_seconds"], half=e["half"])}
+        out.append(e)
+    return out
+
+
 def game_stats(game, logs_dir=None):
     """All stats for one game, from the analyzed team's point of view."""
-    log = load_log(game["id"], logs_dir)
+    log = retimed(game, load_log(game["id"], logs_dir))
+    if game.get("mirrored"):
+        log = [mirror_entry(e) for e in log]
     scan = [e for e in log if e["source"] == "pass1" and e["half"] in (1, 2)]
     wide = [e for e in scan if e["view"] == "wide"]
     stats = {
@@ -70,7 +139,7 @@ def game_stats(game, logs_dir=None):
         _add_frame(stats, e)
         _add_to_timeline(stats["timeline"], e)
     stats["events"] = _collect_events(game, log)
-    stats["shots"] = _shots_with_yaml_goals(game, stats["events"])
+    stats["shots"] = _shots_with_score_goals(game, _shots_with_yaml_goals(game, stats["events"]))
     return stats
 
 
@@ -153,6 +222,7 @@ def _collect_events(game, log):
                 "video_seconds": e["video_seconds"],
                 "half": e["half"],
                 "game_minute": e["game_minute"],
+                "late": config.is_late(game, e["game_minute"]),
                 "zone": e.get("ball_zone"),
             })
             if is_shot and not ev.get("xy"):
@@ -172,6 +242,25 @@ def _pass2_windows(log):
     return [tuple(w) for w in windows]
 
 
+def _shots_with_score_goals(game, shots):
+    """Goals the final score says happened but no frame or games.yaml entry caught.
+
+    Each is added once, with no time or place ("time unknown"), so goal counts match the score.
+    """
+    score = str(game.get("final_score") or "").replace(" ", "")
+    parts = score.split("-")
+    if len(parts) != 2 or not all(x.isdigit() for x in parts):
+        return shots
+    shots = list(shots)
+    for team, total in zip(("analyzed_team", "other_team"), map(int, parts)):
+        found = sum(1 for s in shots if s.get("outcome") == "goal" and s.get("team") == team)
+        shots += [{"type": "shot", "team": team, "outcome": "goal", "position": "unknown", "build_up": "unknown",
+                   "game_id": game["id"], "timestamp": None, "video_seconds": None, "half": None,
+                   "game_minute": None, "late": False, "zone": None, "xy": None, "from_score": True}
+                  for _ in range(total - found)]
+    return shots
+
+
 def _shots_with_yaml_goals(game, events):
     """All shots, plus any goal from games.yaml that was never logged.
 
@@ -186,6 +275,7 @@ def _shots_with_yaml_goals(game, events):
                      for s in shots)
         if logged:
             continue
+        minute = config.game_minute(game, t) if t is not None else None
         shots.append({
             "type": "shot", "team": team, "outcome": "goal",
             "position": goal.get("position", "unknown"),
@@ -194,7 +284,8 @@ def _shots_with_yaml_goals(game, events):
             "timestamp": goal.get("time"),
             "video_seconds": t,
             "half": config.half_for(game, t) if t is not None else None,
-            "game_minute": config.game_minute(game, t) if t is not None else None,
+            "game_minute": minute,
+            "late": config.is_late(game, minute),
             "zone": None, "xy": None, "from_yaml": True,
         })
     return shots
@@ -203,8 +294,8 @@ def _shots_with_yaml_goals(game, events):
 # ---------- whole-team profile ----------
 
 def team_profile(cfg, team_name, logs_dir=None):
-    """Combine every game where `team_name` is the analyzed team."""
-    games = [g for g in cfg["games"] if g.get("analyzed_team_name") == team_name]
+    """Combine every game that shows `team_name` (as the analyzed team or, mirrored, the other team)."""
+    games = team_games(cfg, team_name)
     per_game = [game_stats(g, logs_dir) for g in games]
     profile = {
         "team": team_name,
@@ -233,8 +324,8 @@ def team_profile(cfg, team_name, logs_dir=None):
 
 
 def _context(game):
-    return {k: game.get(k) for k in ("id", "analyzed_team_name", "other_team_name",
-                                      "final_score", "playoff", "opponent_strength", "notes")}
+    return {k: game.get(k) for k in ("id", "analyzed_team_name", "other_team_name", "final_score",
+                                      "playoff", "opponent_strength", "notes", "mirrored")}
 
 
 def _add_summary(p):

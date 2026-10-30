@@ -59,8 +59,9 @@ with right, theme.card():
 with theme.card():
     theme.heading("Set pieces", "Logged in the analyzed film")
     ours, theirs = set_piece_numbers(us), set_piece_numbers(them)
-    st.dataframe([{"": name, us["team"]: ours[name], them["team"]: theirs[name]} for name in ours],
-                 hide_index=True, width="stretch")
+    shown = lambda p, n: str(n) if p["frames_logged"] else "–"
+    st.dataframe([{"": name, us["team"]: shown(us, ours[name]), them["team"]: shown(them, theirs[name])}
+                  for name in ours], hide_index=True, width="stretch")
 
 with theme.card():
     theme.heading("Share", "A printable page with every chart")
@@ -74,7 +75,7 @@ with theme.card():
         with st.spinner("Drawing every chart..."):
             st.session_state[report_key] = html_report(us, them, plan)
         st.rerun()
-    if cols[1].button("Save to reports folder", icon=":material/save:", width="stretch"):
+    if not config.IN_BROWSER and cols[1].button("Save to reports folder", icon=":material/save:", width="stretch"):
         reports_dir.mkdir(parents=True, exist_ok=True)
         with st.spinner("Drawing every chart..."):
             build(config.load_config(games_file), logs_dir, reports_dir)

@@ -4,7 +4,7 @@ import json
 import streamlit as st
 
 from src import config, media, sample_data
-from src.aggregate import team_profile
+from src.aggregate import team_games, team_profile
 from src.ui import theme
 
 
@@ -20,8 +20,8 @@ def has_real_logs():
 
 def use_sample():
     """True when the app is showing the fake demo games."""
-    if config.IN_BROWSER:
-        return True
+    if config.IN_BROWSER and not has_real_logs():
+        return True                     # the website demo, until an analysis pack is opened
     if "use_sample" not in st.session_state:
         st.session_state.use_sample = not has_real_logs()
     return st.session_state.use_sample
@@ -95,7 +95,7 @@ def hero(cfg, us, them, sample):
 
 
 def _games_text(cfg, team):
-    games = [g for g in cfg["games"] if g.get("analyzed_team_name") == team]
+    games = team_games(cfg, team)
     if not games:
         return "no film"
     return ", ".join(f"vs {g.get('other_team_name') or '?'}" + (f" {g['final_score']}" if g.get("final_score") else "")

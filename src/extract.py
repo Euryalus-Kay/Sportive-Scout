@@ -34,12 +34,16 @@ PASS2_INTERVAL = 1
 PASS2_BEFORE = 15       # seconds of film before a key moment
 PASS2_AFTER = 10
 MERGE_GAP = 20          # key moments closer than this share one window
+KICKOFF_LOOKBACK = 90   # a kickoff after a goal: look at this many seconds before it
+KICKOFF_GAP = 60        # kickoffs logged on frames this close are one kickoff
 FRAME_WIDTH = 768
 GRID_SIZE = 4           # frames per grid (2x2)
+DETAIL_WIDTH = 1536     # high detail: every frame is its own image, at this width
 GRIDS_PER_BATCH = 25
 CHUNK_SECONDS = 240     # film per ffmpeg process (a multiple of both intervals)
 KEYFRAME_FAST_MAX = 1.0  # seconds: keyframes this close together allow keyframe-only decoding
 CELL_NAMES = ["top-left", "top-right", "bottom-left", "bottom-right"]
+SINGLE_CELL = "frame"   # the cell name when each image holds one frame
 PTS_TIME = re.compile(r"pts_time:\s*(-?[0-9.]+)")
 
 
@@ -82,7 +86,18 @@ def keyframe_spacing(video):
     return gaps[len(gaps) // 2] if gaps else None
 
 
-def extract_chunk(video, start, duration, interval, out_dir, prefix, threads=0, keyframes_only=False):
+def layout(game):
+    """(frame width, frames per image) for the game's detail setting.
+
+    Standard: four 768-px frames in one 2x2 grid. High: each frame alone at 1536 px,
+    four times the detail per frame (the ball and shirt numbers are much easier to
+    see on wide camera film), for about twice the cost.
+    """
+    return (DETAIL_WIDTH, 1) if game.get("detail") == "high" else (FRAME_WIDTH, GRID_SIZE)
+
+
+def extract_chunk(video, start, duration, interval, out_dir, prefix, threads=0, keyframes_only=False,
+                  width=FRAME_WIDTH):
     """One ffmpeg run: the first frame of every `interval` seconds of a stretch.
 
     Returns a list of (image_path, video_seconds) with the exact time of each
@@ -100,7 +115,7 @@ def extract_chunk(video, start, duration, interval, out_dir, prefix, threads=0, 
     cmd = ["ffmpeg", "-hide_banner", "-nostats", "-loglevel", "info", "-y",
            "-threads", str(threads), *(["-skip_frame", "nokey"] if keyframes_only else []),
            "-ss", f"{start:.3f}", "-t", f"{duration:.3f}", "-i", str(video), "-map", "0:v:0",
-           "-vf", f"{select},showinfo,scale={FRAME_WIDTH}:-2",
+           "-vf", f"{select},showinfo,scale={width}:-2",
            "-fps_mode", "vfr", "-q:v", "4", str(pattern)]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -119,7 +134,7 @@ def extract_chunk(video, start, duration, interval, out_dir, prefix, threads=0, 
 
 
 def extract_segment(video, start, duration, interval, out_dir, prefix, workers=None, progress=None,
-                    keyframes_only=False):
+                    keyframes_only=False, width=FRAME_WIDTH):
     """Pull one frame every `interval` seconds from [start, start+duration).
 
     The stretch is split into chunks that run on several ffmpeg processes at
@@ -130,7 +145,7 @@ def extract_segment(video, start, duration, interval, out_dir, prefix, workers=N
     threads = max(1, (os.cpu_count() or 2) // workers)
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(extract_chunk, video, s, d, interval, out_dir,
-                               f"{prefix}_c{i:03d}", threads, keyframes_only): i
+                               f"{prefix}_c{i:03d}", threads, keyframes_only, width): i
                    for i, (s, d) in enumerate(pieces)}
         results = {}
         for future in as_completed(futures):
@@ -161,13 +176,14 @@ def cell_label(game, video_s):
     return f"{config.format_time(video_s)} | {half_txt} {minute}'"
 
 
-def build_grid(frames, game, out_path):
-    """Combine up to 4 frames into one 2x2 image, each labeled with its time."""
+def build_grid(frames, game, out_path, per_image=GRID_SIZE):
+    """Combine up to 4 frames into one 2x2 image (or one frame alone), each labeled with its time."""
     images = [Image.open(path) for path, _ in frames]
     w, h = images[0].size
-    grid = Image.new("RGB", (w * 2, h * 2), "black")
+    side = 1 if per_image == 1 else 2
+    grid = Image.new("RGB", (w * side, h * side), "black")
     draw = ImageDraw.Draw(grid)
-    font = _font(28)
+    font = _font(28 if side == 2 else 40)
     for i, (img, (_, video_s)) in enumerate(zip(images, frames)):
         x, y = (i % 2) * w, (i // 2) * h
         grid.paste(img.resize((w, h)) if img.size != (w, h) else img, (x, y))
@@ -179,25 +195,28 @@ def build_grid(frames, game, out_path):
 
 
 def build_batches(frames, game, pass_dir, workers=None):
-    """Turn a frame list into grids and batches. Returns the manifest batches."""
-    grids = [frames[i:i + GRID_SIZE] for i in range(0, len(frames), GRID_SIZE)]
+    """Turn a frame list into grids (or single frames) and batches. Returns the manifest batches."""
+    per_image = layout(game)[1]
+    grids = [frames[i:i + per_image] for i in range(0, len(frames), per_image)]
+    per_batch = GRIDS_PER_BATCH * GRID_SIZE // per_image      # about 100 frames per batch either way
+    names = CELL_NAMES if per_image > 1 else [SINGLE_CELL]
     jobs, batches = [], []
-    for b in range(0, len(grids), GRIDS_PER_BATCH):
+    for b in range(0, len(grids), per_batch):
         batch_no = len(batches) + 1
         batch_dir = pass_dir / f"batch_{batch_no:03d}"
         batch_dir.mkdir(parents=True, exist_ok=True)
         entries = []
-        for g, grid_frames in enumerate(grids[b:b + GRIDS_PER_BATCH], start=1):
+        for g, grid_frames in enumerate(grids[b:b + per_batch], start=1):
             grid_path = batch_dir / f"grid_{g:03d}.jpg"
             jobs.append((grid_frames, grid_path))
             entries.append({
                 "grid": _rel(grid_path),
-                "cells": [_cell_info(game, CELL_NAMES[i], s, path)
+                "cells": [_cell_info(game, names[i], s, path)
                           for i, (path, s) in enumerate(grid_frames)],
             })
         batches.append({"batch": batch_no, "grids": entries})
     with ThreadPoolExecutor(max_workers=workers or default_workers()) as pool:
-        list(pool.map(lambda job: build_grid(job[0], game, job[1]), jobs))
+        list(pool.map(lambda job: build_grid(job[0], game, job[1], per_image), jobs))
     return batches
 
 
@@ -229,9 +248,10 @@ def pass1_segments(game, duration, minutes=None):
         return [(kickoff, min(minutes * 60, duration - kickoff))]
     second = game["second_half_start_s"]
     first_end = game["first_half_end_s"] or second or duration
+    end = min(duration, game.get("game_end_s") or duration)
     segments = [(kickoff, first_end - kickoff)]
     if second is not None:
-        segments.append((second, duration - second))
+        segments.append((second, end - second))
     return [(s, length) for s, length in segments if length > 0]
 
 
@@ -250,11 +270,12 @@ def run_pass1(game, minutes=None, workers=None, progress=None):
     for i, (start, length) in enumerate(segments):
         offset = done
         frames += extract_segment(video, start, length, PASS1_INTERVAL, raw_dir, f"seg{i + 1}",
-                                  workers, _shifted(progress, offset, total), keyframes_only=fast)
+                                  workers, _shifted(progress, offset, total), keyframes_only=fast,
+                                  width=layout(game)[0])
         done += len(split_range(start, length))
     batches = build_batches(frames, game, pass_dir, workers)
     manifest = _write_manifest(game, pass_dir, 1, PASS1_INTERVAL, batches, minutes=minutes,
-                               keyframes_only=fast)
+                               keyframes_only=fast, frames_per_image=layout(game)[1])
     print(f"Pass 1: {len(frames)} frames -> {sum(len(b['grids']) for b in batches)} grids in "
           f"{len(batches)} batches" + (" (fast keyframe mode)" if fast else ""))
     return manifest
@@ -270,21 +291,40 @@ def _shifted(progress, offset, total):
 # ---------- Pass 2 ----------
 
 def key_moments(game):
-    """Video times worth a closer look: goals from games.yaml + shots in the log."""
+    """Video windows worth a closer look: goals from games.yaml, shots in the log, and the
+    film before every kickoff that restarts play after a goal (so no goal is missed)."""
     times = [g["seconds"] for g in game["goal_times"] if g.get("seconds") is not None]
+    kickoffs = []
     log_path = config.LOGS_DIR / f"{game['id']}.json"
     if log_path.exists():
         for entry in json.loads(log_path.read_text()):
-            if entry.get("source") == "pass1" and any(
-                    e["type"] in ("shot", "goal") for e in entry.get("events", [])):
+            if entry.get("source") != "pass1":
+                continue
+            events = entry.get("events", [])
+            if any(e["type"] in ("shot", "goal") for e in events):
                 times.append(entry["video_seconds"])
+            if any(e["type"] == "set_piece" and e.get("subtype") == "kickoff" for e in events):
+                kickoffs.append(entry["video_seconds"])
+    windows = [(t - PASS2_BEFORE, t + PASS2_AFTER) for t in times]
+    windows += [(t - KICKOFF_LOOKBACK, t) for t in goal_kickoffs(game, kickoffs)]
     merged = []
-    for t in sorted(times):
-        if merged and t - merged[-1][-1] <= MERGE_GAP:
-            merged[-1].append(t)
+    for start, end in sorted(windows):
+        if merged and start - merged[-1][1] <= MERGE_GAP - PASS2_BEFORE - PASS2_AFTER:
+            merged[-1][1] = max(merged[-1][1], end)
         else:
-            merged.append([t])
-    return [(group[0] - PASS2_BEFORE, group[-1] + PASS2_AFTER) for group in merged]
+            merged.append([start, end])
+    return [tuple(w) for w in merged]
+
+
+def goal_kickoffs(game, times):
+    """Kickoffs that restart play after a goal: one per group of frames, not a half's first kickoff."""
+    starts = [s for s in (game["kickoff_s"], game.get("second_half_start_s")) if s is not None]
+    found = []
+    for t in sorted(times):
+        if found and t - found[-1] <= KICKOFF_GAP:
+            continue                    # the same kickoff seen on several frames
+        found.append(t)
+    return [t for t in found if all(abs(t - s) > KICKOFF_GAP for s in starts)]
 
 
 def run_pass2(game, workers=None, progress=None):
@@ -297,7 +337,7 @@ def run_pass2(game, workers=None, progress=None):
 
     def one_window(i, start, end):
         frames = extract_chunk(video, start, end - start, PASS2_INTERVAL,
-                               pass_dir / "raw", f"moment{i:03d}")
+                               pass_dir / "raw", f"moment{i:03d}", width=layout(game)[0])
         moment_batches = build_batches(frames, game, pass_dir / f"moment_{i:03d}", workers=1)
         return {"batch": i, "window": [config.format_time(start), config.format_time(end)],
                 "grids": [g for b in moment_batches for g in b["grids"]]}
@@ -311,7 +351,8 @@ def run_pass2(game, workers=None, progress=None):
                 progress(len(batches), len(windows))
     batches = sorted((b for b in batches if b["grids"]), key=lambda b: b["batch"])
     manifest = _write_manifest(game, pass_dir, 2, PASS2_INTERVAL, batches,
-                               moments=[[round(s, 1), round(e, 1)] for s, e in moments])
+                               moments=[[round(s, 1), round(e, 1)] for s, e in moments],
+                               frames_per_image=layout(game)[1])
     print(f"Pass 2: {len(batches)} key moments, "
           f"{sum(len(b['grids']) for b in batches)} grids")
     return manifest

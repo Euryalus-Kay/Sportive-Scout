@@ -51,9 +51,15 @@ OUTPUT_TOKENS_PER_FRAME = 170
 
 # ---------- what Claude is told ----------
 
-SYSTEM_PROMPT = """You log soccer game film for a scouting tool used by a high school team. Each image is a 2x2 grid of still frames from one game video. Each cell has a yellow label in its top-left corner: "video time | half game-minute", for example "12:34 | 1H 10'". The message says which frames each grid holds, in reading order: top-left, top-right, bottom-left, bottom-right.
+GRID_INTRO = """You log soccer game film for a scouting tool used by a high school team. Each image is a 2x2 grid of still frames from one game video. Each cell has a yellow label in its top-left corner: "video time | half game-minute", for example "12:34 | 1H 10'". The message says which frames each grid holds, in reading order: top-left, top-right, bottom-left, bottom-right.
 
-Describe only what can be seen in each still frame. Never guess or invent. When something is not visible or you are unsure, use null (or an empty list) and lower the confidence.
+"""
+
+SINGLE_INTRO = """You log soccer game film for a scouting tool used by a high school team. Each image is one full-size still frame from one game video, with a yellow label in its top-left corner: "video time | half game-minute", for example "12:34 | 1H 10'". The message lists the frames in order, four seconds apart (one second apart around key moments).
+
+"""
+
+RULES = """Describe only what can be seen in each still frame. Never guess or invent. When something is not visible or you are unsure, use null (or an empty list) and lower the confidence.
 
 TEAMS
 - "analyzed_team" is the team being scouted; "other_team" is their opponent in this video. The message gives both kit colors and the side of the SCREEN the analyzed team attacks in each half.
@@ -67,7 +73,7 @@ PITCH POSITIONS (screen orientation; the software converts them to each team's v
 PER FRAME
 - view: "wide" (game view showing a good part of the pitch), "close" (close-up of players, coach or crowd), "replay" (slow motion or a replay), "other" (graphics, adverts, halftime, no game).
 - possession: "analyzed_team" or "other_team" (who controls the ball), "contested" (loose ball, header, 50-50), "dead_ball" (ball out of play, foul, stoppage, celebration).
-- analyzed_team_shape / other_team_shape: outfield formation from back to front, digits that add up to 10, like "4-4-2", "4-3-3", "4-2-3-1", "3-5-2". Only when most of that team's outfield players are visible and their lines are clear; otherwise null.
+- analyzed_team_shape / other_team_shape: outfield formation from back to front, digits that add up to 10, like "4-4-2", "4-3-3", "4-2-3-1", "3-5-2". Give it when you can see at least 8 of that team's outfield players and can tell their lines (back line, midfield, forwards), counting players just out of frame from where the lines are; otherwise null.
 - analyzed_team_block / other_team_block: how high that team defends when it does NOT have the ball: "low" (deep, near its own box), "mid" (around the middle third), "high" (pressing in the opponent's half). null when that team has the ball or you can't tell.
 - players: jersey numbers you can clearly read on players near the ball, as strings. Never guess a number.
 - confidence: 0 to 1 for the whole entry (about 0.8 for a clear wide view, 0.5 when partly unclear, below 0.4 when very hard to read).
@@ -80,10 +86,20 @@ EVENTS (log each event once, on the frame where it happens, never again on later
 - cross: a ball delivered from a wide area into the box. team = the crossing team.
 - long_ball: a long forward pass of about 30 m or more that skips midfield. team = the passing team.
 - counter: a fast attack right after winning the ball, against a defense that is out of shape. team = the attacking team.
-- set_piece: subtype "corner", "free_kick", "throw_in", "penalty" or "goal_kick" being taken. team = the team taking it.
+- set_piece: subtype "corner", "free_kick", "throw_in", "penalty", "goal_kick" or "kickoff" (the restart from the center spot at the start of a half or after a goal) being taken. team = the team taking it.
 Use null for fields that don't apply to an event type.
 
 Return one entry per frame, in the order listed in the message, copying each timestamp exactly (mm:ss)."""
+
+SYSTEM_PROMPT = GRID_INTRO + RULES            # 2x2 grids (standard detail)
+SINGLE_SYSTEM_PROMPT = SINGLE_INTRO + RULES   # one frame per image (high detail)
+
+FOLLOW_CAMERA_NOTE = (
+    "\nCamera: an automatic camera that follows the ball (like Veo or Trace), so the ball is almost always "
+    "near the middle of the picture, even when it is too small to see. When you can't see the ball, place "
+    "ball_screen where the middle of the frame falls on the pitch, and judge possession from the players "
+    "nearest the middle of the picture: the team on the ball there has it. Use \"contested\" only for a "
+    "real 50-50 you can see, and lower the confidence when you are inferring.")
 
 PASS2_NOTE = ("These frames are one second apart around a key moment (a goal or a shot). Read them as a "
               "sequence: log the shot once, on the frame where the ball is struck (or the closest frame), "
@@ -113,7 +129,7 @@ EVENT_SCHEMA = {
         "position": _nullable(_enum(["GK", "CB", "LB", "RB", "LWB", "RWB", "DM", "CM", "AM",
                                      "LM", "RM", "LW", "RW", "ST", "CF"])),
         "build_up": _nullable(_enum(["wide", "central", "counter", "set_piece", "long_ball", "press"])),
-        "subtype": _nullable(_enum(["corner", "free_kick", "throw_in", "penalty", "goal_kick"])),
+        "subtype": _nullable(_enum(["corner", "free_kick", "throw_in", "penalty", "goal_kick", "kickoff"])),
         "xy_screen": _nullable(_point("x", "y")),
     },
     "required": ["type", "team", "outcome", "position", "build_up", "subtype", "xy_screen"],
@@ -163,7 +179,8 @@ def game_context(game):
             f"other_team wears {kits.get('other_team') or 'unknown colors'}.\n"
             f"Screen direction: in the 1st half (labels 1H) the analyzed_team attacks toward the "
             f"{first.upper()} of the screen; in the 2nd half (labels 2H) it attacks toward the "
-            f"{second.upper()}. Frames labeled 'break' are before kickoff or at halftime.")
+            f"{second.upper()}. Frames labeled 'break' are before kickoff or at halftime."
+            + (FOLLOW_CAMERA_NOTE if game.get("camera") == "follow" else ""))
 
 
 def build_request(game, pass_no, batch, model=DEFAULT_MODEL, effort=DEFAULT_EFFORT):
@@ -172,9 +189,14 @@ def build_request(game, pass_no, batch, model=DEFAULT_MODEL, effort=DEFAULT_EFFO
     if pass_no == 2:
         content.append({"type": "text", "text": PASS2_NOTE})
     stamps, n = [], len(batch["grids"])
+    single = is_single(batch)
     for i, grid in enumerate(batch["grids"], start=1):
-        cells = "; ".join(f"{c['cell']} = {c['timestamp']} ({_half_text(c)})" for c in grid["cells"])
-        content.append({"type": "text", "text": f"Grid {i} of {n}: {cells}."})
+        if single:
+            c = grid["cells"][0]
+            content.append({"type": "text", "text": f"Frame {i} of {n}: {c['timestamp']} ({_half_text(c)})."})
+        else:
+            cells = "; ".join(f"{c['cell']} = {c['timestamp']} ({_half_text(c)})" for c in grid["cells"])
+            content.append({"type": "text", "text": f"Grid {i} of {n}: {cells}."})
         content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
                                                     "data": _image_b64(grid["grid"])}})
         stamps += [c["timestamp"] for c in grid["cells"]]
@@ -183,11 +205,17 @@ def build_request(game, pass_no, batch, model=DEFAULT_MODEL, effort=DEFAULT_EFFO
     return {
         "model": model,
         "max_tokens": MAX_TOKENS,
-        "system": [{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
+        "system": [{"type": "text", "text": SINGLE_SYSTEM_PROMPT if single else SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"}}],
         "messages": [{"role": "user", "content": content}],
         "output_config": {"effort": effort,
                           "format": {"type": "json_schema", "schema": RESPONSE_SCHEMA}},
     }
+
+
+def is_single(batch):
+    """True when every image in the batch is one frame (high detail)."""
+    return all(c["cell"] == "frame" for g in batch["grids"] for c in g["cells"])
 
 
 def _half_text(cell):
@@ -295,13 +323,14 @@ def add_usage(total, usage):
     return total
 
 
-def estimate_cost(n_grids, model=DEFAULT_MODEL, grids_per_chunk=4):
-    """Rough dollars to analyze n_grids grids. Real usage is shown while running."""
+def estimate_cost(n_grids, model=DEFAULT_MODEL, grids_per_chunk=4, frames_per_image=4):
+    """Rough dollars to analyze n_grids images (2x2 grids, or single frames in high detail).
+    Real usage is shown while running."""
     chunks = math.ceil(n_grids / max(1, grids_per_chunk))
     usage = {"input_tokens": n_grids * TOKENS_PER_GRID + chunks * 200,
              "cache_read_tokens": chunks * PROMPT_TOKENS,
              "cache_write_tokens": PROMPT_TOKENS,
-             "output_tokens": n_grids * 4 * OUTPUT_TOKENS_PER_FRAME}
+             "output_tokens": n_grids * frames_per_image * OUTPUT_TOKENS_PER_FRAME}
     return cost_of(usage, model)
 
 

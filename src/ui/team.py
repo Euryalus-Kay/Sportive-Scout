@@ -157,8 +157,8 @@ def goals_table(goals):
     if not goals:
         st.caption("None logged.")
         return
-    st.dataframe([{"Minute": f"{int(g['game_minute']) + 1}'" if g.get("game_minute") is not None else "?",
+    st.dataframe([{"Minute": f"{int(g['game_minute']) + 1}'" if g.get("game_minute") is not None else "time unknown",
                    "Position": g.get("position") or "unknown",
                    "How": (g.get("build_up") or "unknown").replace("_", " "),
-                   "Film time": g.get("timestamp") or "?"} for g in goals],
+                   "Film time": g.get("timestamp") or "not caught on film"} for g in goals],
                  hide_index=True, width="stretch")

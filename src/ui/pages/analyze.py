@@ -110,10 +110,14 @@ def game_form(game, key):
         kit_b = c[1].text_input("Opponent's kit", kits.get("other_team") or "", placeholder="red shirts, red shorts")
         direction = st.radio("In the 1st half, they attack toward the ... of the screen", ["right", "left"],
                              horizontal=True, index=0 if game.get("attacking_direction", "right") == "right" else 1)
-        c = st.columns(3)
+        c = st.columns(4)
         kickoff = c[0].text_input("Kickoff (video time)", game.get("kickoff_time") or "00:00")
         half_end = c[1].text_input("1st half ends", game.get("first_half_end") or "", placeholder="optional, mm:ss")
         second = c[2].text_input("2nd half kickoff", game.get("second_half_start") or "", placeholder="mm:ss")
+        half_length = c[3].number_input("Minutes per half", 10, 60, int(game.get("half_length") or 45),
+                                        help="45 for most adult games, 40 for high school.")
+        game_end = st.text_input("Final whistle (video time, optional)", game.get("game_end") or "",
+                                 placeholder="h:mm:ss", help="Film after this (celebrations, interviews) is skipped.")
         c = st.columns(3)
         score = c[0].text_input("Final score (their goals first)", game.get("final_score") or "", placeholder="2-1")
         strength = c[1].selectbox("Opponent in this video was", list(config.STRENGTHS),
@@ -127,6 +131,14 @@ def game_form(game, key):
                            "team": st.column_config.SelectboxColumn("Team", options=list(config.TEAMS)),
                            "position": st.column_config.SelectboxColumn("Scorer position", options=POSITIONS),
                            "how": st.column_config.SelectboxColumn("How", options=HOW)})
+        c = st.columns(2)
+        cameras = {"": "Not sure", "follow": "Follows the ball (Veo, Trace, Pixellot)", "broadcast": "TV or broadcast",
+                   "fixed": "Fixed wide camera"}
+        camera = c[0].selectbox("Camera", list(cameras), format_func=cameras.get,
+                                index=list(cameras).index(game.get("camera") or ""))
+        detail = c[1].selectbox("Detail", ["standard", "high"], index=1 if game.get("detail") == "high" else 0,
+                                format_func={"standard": "Standard (2x2 grids, cheaper)",
+                                             "high": "High (each frame full size, about 2x the cost)"}.get)
         notes = st.text_input("Notes", game.get("notes") or "")
         submitted = st.form_submit_button("Save game", type="primary")
     if not submitted:
@@ -137,10 +149,12 @@ def game_form(game, key):
         "analyzed_team_name": team, "other_team_name": other.strip(),
         "kit_colors": {"analyzed_team": kit_a.strip(), "other_team": kit_b.strip()},
         "attacking_direction": direction, "kickoff_time": kickoff.strip(), "first_half_end": half_end.strip(),
-        "second_half_start": second.strip(), "final_score": score.strip(),
+        "second_half_start": second.strip(), "half_length": int(half_length), "game_end": game_end.strip() or None,
+        "final_score": score.strip(),
         "goal_times": [{k: v for k, v in row.items() if isinstance(v, str) and v.strip()}
                        for row in goals.to_dict("records") if isinstance(row.get("time"), str) and row["time"].strip()],
-        "playoff": playoff, "opponent_strength": strength, "notes": notes.strip(),
+        "playoff": playoff, "opponent_strength": strength, "camera": camera or None, "detail": detail,
+        "notes": notes.strip(),
     }
     try:
         problems = config.validate_config({"matchup": matchup, "games": [config._prepare_game(entry)]})
@@ -291,10 +305,12 @@ with theme.card():
                                       help="More is faster. Lower it if your API key hits rate limits.")
                 quick = c[3].toggle("Quick test (5 min)", help="Only the first 5 minutes of each game.")
                 minutes = 5 if quick else None
-                grids = sum(pending_grids(g["id"], 1) if run.pass1_ready(g, minutes) else run.planned_grids(g, minutes)
-                            for g in runnable if g["id"] in picked)
-                st.caption(f"{grids} grids ({grids * 4} frames) to analyze in Pass 1 · rough cost "
-                           f"${estimate_cost(grids, model):.2f} (key moments add 10-20%). Already analyzed "
+                plan = [(g, pending_grids(g["id"], 1) if run.pass1_ready(g, minutes) else run.planned_grids(g, minutes))
+                        for g in runnable if g["id"] in picked]
+                frames = sum(n * run.extract.layout(g)[1] for g, n in plan)
+                cost = sum(estimate_cost(n, model, frames_per_image=run.extract.layout(g)[1]) for g, n in plan)
+                st.caption(f"{frames} frames to analyze in Pass 1 · rough cost "
+                           f"${cost:.2f} (key moments add 10-20%). Already analyzed "
                            "parts are skipped, and stopping keeps everything finished so far.")
                 if st.button(f"Analyze {len(picked)} game{'s' if len(picked) != 1 else ''}", type="primary",
                              disabled=not picked, icon=":material/play_arrow:"):

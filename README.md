@@ -57,6 +57,18 @@ arrives, so stopping or crashing never loses paid work, and running again skips 
 Claude Opus 5.5 (the default, most accurate), about $3.50 with Sonnet 5.5 and about 20 cents
 with Haiku 5.5. The real spend is measured per batch and shown on the Analyze film page.
 
+**Film from an automatic camera (Veo, Trace, Pixellot)?** Set *Camera* to "Follows the ball" on the
+game form: Claude then knows the ball is near the middle of the picture. For the best results set
+*Detail* to "High": every frame is read on its own at full size (about twice the cost, around $15
+to $20 a game with Opus 5.5). High school games: set *Minutes per half* to 40.
+
+**One film, both teams.** If a video shows both teams in the matchup, each team's page uses it.
+
+**View your analysis on the website.** `python -m src.pack` writes `reports/analysis_pack.zip`
+(games and logs, no film). Open it with *Open your analysis* in the sidebar of the
+[website's app](https://euryalus-kay.github.io/Sportive-Scout/demo/): it is read in your browser
+and never uploaded, so the report stays private.
+
 ### Tested on real film
 Two full high school games from a public-access cable broadcast (about 85 minutes of play
 each, one wide camera, 1080p) ran through `python -m src.run --all` in October 2026.

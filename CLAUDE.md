@@ -86,8 +86,16 @@ loads after big UI changes.
 `kit_colors`, `attacking_direction` (screen side in the 1st half), `kickoff_time`,
 `first_half_end`, `second_half_start` (video times), `final_score`,
 `goal_times` (list of `{time, team, position, how}`), `playoff`,
-`opponent_strength` (weaker/similar/stronger), `notes`.
+`opponent_strength` (weaker/similar/stronger), `notes`, and three optional settings:
+`half_length` (minutes per half: 45 by default, 40 for high school), `camera`
+(`follow` for automatic ball-following cameras like Veo or Trace, `broadcast`, `fixed`),
+`detail` (`high` sends each frame alone at 1536 px instead of 2x2 grids, about 2x the cost).
 `python -m src.run` and the app check it with `config.validate_config` first.
+
+A film that shows both matchup teams counts for both: the other team's profile reads
+the same log mirrored (`aggregate.mirror_game`). `final_score` fills goals the film missed.
+Pass 2 looks at the 90 seconds before every kickoff that restarts play after a goal.
+`python -m src.pack` zips games.yaml + logs; the website's app opens it in the browser only.
 
 ## How to log a batch (mode A)
 1. `python -m src.analyzer claim --game GAME_ID [--pass 2] [--agent NAME]` hands you the

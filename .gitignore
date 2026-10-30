@@ -1,5 +1,5 @@
-film/
-frames/
+/film/
+/frames/
 .env
 __pycache__/
 .venv/

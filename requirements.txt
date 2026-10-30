@@ -1,6 +1,8 @@
-streamlit>=1.40
+streamlit>=1.60
 matplotlib>=3.9
 numpy>=2.0
 pandas>=2.2
-Pillow>=10.0
+Pillow>=10.1
 PyYAML>=6.0
+plotly>=6.0
+anthropic>=2.3

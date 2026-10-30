@@ -15,7 +15,10 @@ from src import config
 from src.analyzer import load_log
 
 PASS1_INTERVAL = 4          # seconds between Pass 1 frames (see extract.py)
-GOAL_MATCH_WINDOW = 30      # seconds: a logged goal this close to a games.yaml goal is the same goal
+GOAL_MATCH_WINDOW = 30      # seconds: goals by one team this close together are the same goal
+PASS2_GAP = 5               # seconds: Pass 2 frames further apart than this are separate moments
+TIMELINE_STEP = 5           # minutes per timeline bar
+TIMELINE_BINS = 19          # 0-5', 5-10', ... 85-90', 90+'
 
 
 def empty_heat():
@@ -36,7 +39,7 @@ def side_of(y):
 
 # ---------- one game ----------
 
-def game_stats(game, logs_dir=config.LOGS_DIR):
+def game_stats(game, logs_dir=None):
     """All stats for one game, from the analyzed team's point of view."""
     log = load_log(game["id"], logs_dir)
     scan = [e for e in log if e["source"] == "pass1" and e["half"] in (1, 2)]
@@ -59,14 +62,40 @@ def game_stats(game, logs_dir=config.LOGS_DIR):
         "other_shape_out": Counter(),
         "attack_side": Counter(),       # where they have the ball in the final third
         "defend_side": Counter(),       # where opponents have the ball in their defensive third
+        "timeline": empty_timeline(),   # possession and territory per 5 minutes
         "events": [],
         "players": Counter(),
     }
     for e in wide:
         _add_frame(stats, e)
+        _add_to_timeline(stats["timeline"], e)
     stats["events"] = _collect_events(game, log)
     stats["shots"] = _shots_with_yaml_goals(game, stats["events"])
     return stats
+
+
+def empty_timeline():
+    """Per 5-minute bin: frames in / out of possession, in the final third, in danger."""
+    return np.zeros((TIMELINE_BINS, 4))
+
+
+def timeline_bin(minute):
+    return min(int((minute or 0) // TIMELINE_STEP), TIMELINE_BINS - 1)
+
+
+def _add_to_timeline(timeline, e):
+    """Columns: 0 = they have the ball, 1 = opponents have it, 2 = they have it in the
+    final third, 3 = opponents have it in their defensive third."""
+    row = timeline_bin(e["game_minute"])
+    x = e["ball_zone"][0] if e.get("ball_zone") else None
+    if e["possession"] == "analyzed_team":
+        timeline[row, 0] += 1
+        if x is not None and x >= 5:
+            timeline[row, 2] += 1
+    elif e["possession"] == "other_team":
+        timeline[row, 1] += 1
+        if x is not None and x <= 2:
+            timeline[row, 3] += 1
 
 
 def _add_frame(stats, e):
@@ -99,7 +128,7 @@ def _collect_events(game, log):
     """Every event with its time and place. Pass 2 replaces Pass 1 inside its windows."""
     windows = _pass2_windows(log)
     events = []
-    seen_goals = set()
+    goal_times = []                     # (team, video seconds) of goals already counted
     for e in log:
         if e["half"] not in (1, 2):
             continue
@@ -113,14 +142,16 @@ def _collect_events(game, log):
             if ev["type"] == "goal":
                 ev["type"], ev["outcome"] = "shot", "goal"
             if ev["type"] == "shot" and ev.get("outcome") == "goal":
-                key = (ev.get("team"), e["timestamp"])
-                if key in seen_goals:
+                # The same goal is often visible on several frames (1 s apart in Pass 2).
+                if any(team == ev.get("team") and abs(t - e["video_seconds"]) <= GOAL_MATCH_WINDOW
+                       for team, t in goal_times):
                     continue
-                seen_goals.add(key)
+                goal_times.append((ev.get("team"), e["video_seconds"]))
             ev.update({
                 "game_id": game["id"],
                 "timestamp": e["timestamp"],
                 "video_seconds": e["video_seconds"],
+                "half": e["half"],
                 "game_minute": e["game_minute"],
                 "zone": e.get("ball_zone"),
             })
@@ -131,12 +162,14 @@ def _collect_events(game, log):
 
 
 def _pass2_windows(log):
-    """(start, end) video seconds covered by each Pass 2 batch."""
-    by_batch = {}
-    for e in log:
-        if e["source"] == "pass2":
-            by_batch.setdefault(e["batch"], []).append(e["video_seconds"])
-    return [(min(v), max(v)) for v in by_batch.values()]
+    """(start, end) video seconds covered by each run of 1-second Pass 2 frames."""
+    windows = []
+    for t in sorted(e["video_seconds"] for e in log if e["source"] == "pass2"):
+        if windows and t - windows[-1][1] <= PASS2_GAP:
+            windows[-1][1] = t
+        else:
+            windows.append([t, t])
+    return [tuple(w) for w in windows]
 
 
 def _shots_with_yaml_goals(game, events):
@@ -160,6 +193,7 @@ def _shots_with_yaml_goals(game, events):
             "game_id": game["id"],
             "timestamp": goal.get("time"),
             "video_seconds": t,
+            "half": config.half_for(game, t) if t is not None else None,
             "game_minute": config.game_minute(game, t) if t is not None else None,
             "zone": None, "xy": None, "from_yaml": True,
         })
@@ -168,7 +202,7 @@ def _shots_with_yaml_goals(game, events):
 
 # ---------- whole-team profile ----------
 
-def team_profile(cfg, team_name, logs_dir=config.LOGS_DIR):
+def team_profile(cfg, team_name, logs_dir=None):
     """Combine every game where `team_name` is the analyzed team."""
     games = [g for g in cfg["games"] if g.get("analyzed_team_name") == team_name]
     per_game = [game_stats(g, logs_dir) for g in games]
@@ -184,6 +218,7 @@ def team_profile(cfg, team_name, logs_dir=config.LOGS_DIR):
         if profile["frames_wide"] else 0.0)
     for key in ("heat_all", "heat_in", "heat_out"):
         profile[key] = sum((s[key] for s in per_game), empty_heat())
+    profile["timeline"] = sum((s["timeline"] for s in per_game), empty_timeline())
     for key in ("possession", "shape_in", "shape_out", "block_in", "block_out",
                 "other_shape_in", "other_shape_out", "attack_side", "defend_side", "players"):
         profile[key] = sum((s[key] for s in per_game), Counter())
@@ -216,6 +251,39 @@ def _add_summary(p):
     p["goals_by_position"] = Counter(s.get("position") or "unknown" for s in p["goals_for"])
     p["shots_by_position"] = Counter(s.get("position") or "unknown" for s in p["shots_for"])
     p["turnovers"] = events_of(p["events_for"], "turnover")
+    p["rates"] = _rates(p)
+
+
+def _rates(p):
+    """Per-90 numbers and shares used to compare two teams side by side."""
+    per90 = p["per90"]
+    count = lambda kind: len(events_of(p["events_for"], kind)) * per90
+    in_poss = p["timeline"][:, 0].sum()
+    return {
+        "possession": p["possession_pct"] or 0.0,
+        "shots_90": len(p["shots_for"]) * per90,
+        "shots_against_90": len(p["shots_against"]) * per90,
+        "on_target_pct": _pct([s for s in p["shots_for"] if s.get("outcome") in ("goal", "on_target")],
+                              p["shots_for"]),
+        "box_shots_pct": _pct([s for s in p["shots_for"] if in_box(s.get("xy"))],
+                              [s for s in p["shots_for"] if s.get("xy")]),
+        "final_third_pct": float(100 * p["timeline"][:, 2].sum() / in_poss) if in_poss else 0.0,
+        "presses_90": count("press"),
+        "crosses_90": count("cross"),
+        "long_balls_90": count("long_ball"),
+        "turnovers_own_half_90": len([t for t in p["turnovers"] if t.get("zone") and t["zone"][0] <= 3]) * per90,
+        "high_block_pct": share(p["block_out"], "high"),
+        "low_block_pct": share(p["block_out"], "low"),
+    }
+
+
+def in_box(xy):
+    """True when a relative 0-100 spot is inside the attacked penalty box."""
+    return bool(xy) and xy[0] >= 100 - 16.5 * 100 / 105 and abs(xy[1] - 50) <= 20.16 * 100 / 68
+
+
+def _pct(part, whole):
+    return 100 * len(part) / len(whole) if whole else 0.0
 
 
 def _top(counter):

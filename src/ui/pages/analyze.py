@@ -116,6 +116,8 @@ def game_form(game, key):
         second = c[2].text_input("2nd half kickoff", game.get("second_half_start") or "", placeholder="mm:ss")
         half_length = c[3].number_input("Minutes per half", 10, 60, int(game.get("half_length") or 45),
                                         help="45 for most adult games, 40 for high school.")
+        game_end = st.text_input("Final whistle (video time, optional)", game.get("game_end") or "",
+                                 placeholder="h:mm:ss", help="Film after this (celebrations, interviews) is skipped.")
         c = st.columns(3)
         score = c[0].text_input("Final score (their goals first)", game.get("final_score") or "", placeholder="2-1")
         strength = c[1].selectbox("Opponent in this video was", list(config.STRENGTHS),
@@ -147,7 +149,8 @@ def game_form(game, key):
         "analyzed_team_name": team, "other_team_name": other.strip(),
         "kit_colors": {"analyzed_team": kit_a.strip(), "other_team": kit_b.strip()},
         "attacking_direction": direction, "kickoff_time": kickoff.strip(), "first_half_end": half_end.strip(),
-        "second_half_start": second.strip(), "half_length": int(half_length), "final_score": score.strip(),
+        "second_half_start": second.strip(), "half_length": int(half_length), "game_end": game_end.strip() or None,
+        "final_score": score.strip(),
         "goal_times": [{k: v for k, v in row.items() if isinstance(v, str) and v.strip()}
                        for row in goals.to_dict("records") if isinstance(row.get("time"), str) and row["time"].strip()],
         "playoff": playoff, "opponent_strength": strength, "camera": camera or None, "detail": detail,

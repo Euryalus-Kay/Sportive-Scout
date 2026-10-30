@@ -39,6 +39,9 @@ def test_high_school_halves_are_40_minutes():
     assert config.game_minute(game, 59 * 60) == pytest.approx(42.0)      # 2 min into the 2nd half
     assert config.is_late(game, 66) and not config.is_late(game, 64)      # last 15 of 80
     assert config.is_late(config._prepare_game({"id": "g"}), 76)          # last 15 of 90
+    ended = config._prepare_game({"id": "g", "kickoff_time": "05:00", "second_half_start": "57:00",
+                                  "game_end": "1:40:00"})
+    assert config.half_for(ended, 99 * 60) == 2 and config.half_for(ended, 101 * 60) == 0
     bad = config._prepare_game({"id": "g", "file": "a.mp4", "analyzed_team_name": "A", "half_length": 90})
     assert any("half_length" in p for p in config._game_problems(bad, {"our_team": "A", "opponent": "B"}))
 

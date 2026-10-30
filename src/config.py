@@ -116,6 +116,7 @@ def _prepare_game(game):
     game["kickoff_s"] = parse_time(game.get("kickoff_time")) or 0.0
     game["first_half_end_s"] = parse_time(game.get("first_half_end"))
     game["second_half_start_s"] = parse_time(game.get("second_half_start"))
+    game["game_end_s"] = parse_time(game.get("game_end"))      # optional: the final whistle
     for goal in game["goal_times"]:
         goal["seconds"] = parse_time(goal.get("time"))
     return game
@@ -168,6 +169,8 @@ def _game_problems(g, matchup):
         out.append("first_half_end must be after kickoff_time.")
     if end is not None and second is not None and end > second:
         out.append("first_half_end must be before second_half_start.")
+    if g.get("game_end_s") is not None and g["game_end_s"] <= (second or kickoff):
+        out.append("game_end must be after the 2nd half kickoff.")
     for goal in g["goal_times"]:
         if goal.get("seconds") is None:
             out.append("a goal in goal_times has no time.")
@@ -180,6 +183,8 @@ def half_for(game, video_s):
     """Which half a video time is in: 1, 2, or 0 for break / before kickoff."""
     if video_s < game["kickoff_s"]:
         return 0
+    if game.get("game_end_s") is not None and video_s > game["game_end_s"]:
+        return 0                        # after the final whistle
     second = game["second_half_start_s"]
     if second is not None and video_s >= second:
         return 2

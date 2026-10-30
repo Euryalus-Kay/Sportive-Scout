@@ -248,9 +248,10 @@ def pass1_segments(game, duration, minutes=None):
         return [(kickoff, min(minutes * 60, duration - kickoff))]
     second = game["second_half_start_s"]
     first_end = game["first_half_end_s"] or second or duration
+    end = min(duration, game.get("game_end_s") or duration)
     segments = [(kickoff, first_end - kickoff)]
     if second is not None:
-        segments.append((second, duration - second))
+        segments.append((second, end - second))
     return [(s, length) for s, length in segments if length > 0]
 
 

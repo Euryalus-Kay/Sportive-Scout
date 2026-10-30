@@ -94,8 +94,16 @@ def retimed(game, log):
     Minutes are stored when a frame is logged; recomputing them means a corrected
     kickoff time or half length applies without analyzing the film again.
     """
-    return [{**e, "game_minute": config.game_minute(game, e["video_seconds"], half=e["half"])}
-            if e.get("video_seconds") is not None and e.get("half") in (1, 2) else e for e in log]
+    end = game.get("game_end_s")
+    out = []
+    for e in log:
+        if e.get("video_seconds") is not None and e.get("half") in (1, 2):
+            if end is not None and e["video_seconds"] > end:
+                e = {**e, "half": 0}    # after the final whistle: not part of the game
+            else:
+                e = {**e, "game_minute": config.game_minute(game, e["video_seconds"], half=e["half"])}
+        out.append(e)
+    return out
 
 
 def game_stats(game, logs_dir=None):

@@ -3,7 +3,6 @@ import streamlit as st
 
 from src import config
 from src.insights import game_plan, set_piece_numbers, setup
-from src.report import build, html_report
 from src.ui import theme
 from src.ui.common import load, needs_setup, no_logs, source_paths
 
@@ -73,10 +72,12 @@ with theme.card():
                                 mime="text/html", icon=":material/download:", width="stretch")
     elif cols[0].button("Build report", icon=":material/description:", width="stretch"):
         with st.spinner("Drawing every chart..."):
+            from src.report import html_report      # loads matplotlib only when asked
             st.session_state[report_key] = html_report(us, them, plan)
         st.rerun()
     if not config.IN_BROWSER and cols[1].button("Save to reports folder", icon=":material/save:", width="stretch"):
         reports_dir.mkdir(parents=True, exist_ok=True)
         with st.spinner("Drawing every chart..."):
+            from src.report import build
             build(config.load_config(games_file), logs_dir, reports_dir)
         st.success(f"Saved to {reports_dir.relative_to(config.ROOT)}/")

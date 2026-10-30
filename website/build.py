@@ -28,7 +28,7 @@ def app_files():
 def build(out=OUT):
     if out.exists():
         shutil.rmtree(out)
-    shutil.copytree(SITE, out, ignore=shutil.ignore_patterns("build.py", "__pycache__", "*.pyc"))
+    shutil.copytree(SITE, out, ignore=shutil.ignore_patterns("build.py", "build_game.py", "game_template", "__pycache__", "*.pyc"))
     with zipfile.ZipFile(out / "demo" / "app.zip", "w", zipfile.ZIP_DEFLATED) as archive:
         for path in app_files():
             archive.write(path, path.relative_to(ROOT).as_posix())

@@ -67,12 +67,13 @@ TEAMS
 PITCH POSITIONS (screen orientation; the software converts them to each team's view later)
 - Picture the WHOLE pitch as the camera sees it. Columns run along its length: col 1 is the end with the goal on the LEFT of the screen, col 6 the end with the goal on the RIGHT (each column is one sixth of the pitch, the halfway line is between col 3 and col 4). Rows run across its width: row 1 is the FAR touchline (top of the screen), row 4 the NEAR touchline (the camera side).
 - Use the pitch markings (halfway line, center circle, penalty boxes, touchlines, goals) to place the ball on the whole pitch, even when the camera shows only part of it.
+- Rows follow the pitch's width, not the height of the picture. From a high camera on one sideline the far half of the pitch looks squashed near the top, so judge the row from the touchlines, the penalty box lines and the center circle around the ball, not from how high it sits on the screen.
 - ball_screen: {"col", "row"} of the ball, or null if the ball can't be seen or placed.
 - ball_xy_screen: {"x", "y"} from 0 to 100 (x: 0 = left goal line, 100 = right goal line; y: 0 = far touchline, 100 = near touchline). Give it when you can place the ball fairly precisely, always for shots; otherwise null.
 
 PER FRAME
 - view: "wide" (game view showing a good part of the pitch), "close" (close-up of players, coach or crowd), "replay" (slow motion or a replay), "other" (graphics, adverts, halftime, no game).
-- possession: "analyzed_team" or "other_team" (who controls the ball), "contested" (loose ball, header, 50-50), "dead_ball" (ball out of play, foul, stoppage, celebration).
+- possession: "analyzed_team" or "other_team" (who controls the ball), "contested" (loose ball, header, 50-50), "dead_ball" (ball out of play, foul, stoppage, celebration, or a restart being set up with the ball placed and players waiting). A goalkeeper holding the ball counts as their team's possession. Never lean toward the analyzed team: judge both teams the same way.
 - analyzed_team_shape / other_team_shape: outfield formation from back to front, digits that add up to 10, like "4-4-2", "4-3-3", "4-2-3-1", "3-5-2". Give it when you can see at least 8 of that team's outfield players and can tell their lines (back line, midfield, forwards), counting players just out of frame from where the lines are; otherwise null.
 - analyzed_team_block / other_team_block: how high that team defends when it does NOT have the ball: "low" (deep, near its own box), "mid" (around the middle third), "high" (pressing in the opponent's half). null when that team has the ball or you can't tell.
 - players: jersey numbers you can clearly read on players near the ball, as strings. Never guess a number.
@@ -98,8 +99,8 @@ FOLLOW_CAMERA_NOTE = (
     "\nCamera: an automatic camera that follows the ball (like Veo or Trace), so the ball is almost always "
     "near the middle of the picture, even when it is too small to see. When you can't see the ball, place "
     "ball_screen where the middle of the frame falls on the pitch, and judge possession from the players "
-    "nearest the middle of the picture: the team on the ball there has it. Use \"contested\" only for a "
-    "real 50-50 you can see, and lower the confidence when you are inferring.")
+    "nearest the middle of the picture: the team on the ball there has it. When players of both teams are "
+    "equally close and you can't tell, use \"contested\". Lower the confidence when you are inferring.")
 
 PASS2_NOTE = ("These frames are one second apart around a key moment (a goal or a shot). Read them as a "
               "sequence: log the shot once, on the frame where the ball is struck (or the closest frame), "

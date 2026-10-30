@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sportive Scout Report</title>
+  <meta name="description" content="Scouting report from game film: both teams, every moment, clips of every goal and shot.">
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap bar">
+      <a class="brand" href="../../"><span class="mark"></span>Sportive Scout</a>
+      <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+    </div>
+  </header>
+  <main class="wrap" id="view" aria-live="polite">
+    <p class="muted loading">Loading the report…</p>
+  </main>
+  <footer class="wrap foot">
+    <span id="foot-note"></span>
+    <a href="../../">Sportive Scout</a>
+  </footer>
+
+  <div class="modal" id="modal" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-head">
+        <div><div class="eyebrow" id="modal-eyebrow"></div><h3 id="modal-title"></h3></div>
+        <button class="icon-btn" id="modal-close" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-media" id="modal-media"></div>
+      <div class="modal-foot">
+        <button class="btn" id="modal-prev">Previous</button>
+        <span class="muted" id="modal-count"></span>
+        <button class="btn" id="modal-next">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@4.1.1/plotly.min.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

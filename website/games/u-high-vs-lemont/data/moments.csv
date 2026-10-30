@@ -1,0 +1,110 @@
+game,team,type,detail,goal,half,minute,film_time
+lemont_vs_hinsdale_south,Lemont,Set piece,throw in,False,1,10,15:11
+lemont_vs_hinsdale_south,Lemont,Set piece,corner,False,1,11,15:51
+lemont_vs_hinsdale_south,Lemont,Set piece,corner,False,1,11,15:59
+lemont_vs_hinsdale_south,Lemont,Turnover,,False,1,15,19:19
+lemont_vs_hinsdale_south,Lemont,Turnover,,False,1,15,19:31
+lemont_vs_hinsdale_south,Hinsdale South,Turnover,,False,1,15,19:39
+lemont_vs_hinsdale_south,Lemont,Turnover,,False,1,19,23:19
+lemont_vs_hinsdale_south,Hinsdale South,Set piece,free kick,False,1,21,25:43
+lemont_vs_hinsdale_south,Hinsdale South,Long ball,,False,1,21,25:47
+lemont_vs_hinsdale_south,Lemont,Set piece,free kick,False,1,21,26:11
+lemont_vs_hinsdale_south,Lemont,Set piece,free kick,False,1,22,26:23
+lemont_vs_hinsdale_south,Lemont,Long ball,,False,1,22,26:27
+lemont_vs_hinsdale_south,Lemont,Set piece,free kick,False,1,23,27:27
+lemont_vs_hinsdale_south,Lemont,Cross,,False,1,24,28:23
+lemont_vs_hinsdale_south,Lemont,Turnover,,False,1,25,29:59
+lemont_vs_hinsdale_south,Hinsdale South,Set piece,free kick,False,1,26,30:55
+lemont_vs_hinsdale_south,Lemont,Press,,False,1,27,32:11
+lemont_vs_hinsdale_south,Lemont,Press,,False,1,32,36:23
+lemont_vs_hinsdale_south,Lemont,Set piece,free kick,False,1,32,36:35
+lemont_vs_hinsdale_south,Lemont,Long ball,,False,1,34,38:39
+lemont_vs_hinsdale_south,Lemont,Shot,goal,True,1,34,38:47
+lemont_vs_hinsdale_south,Lemont,Press,,False,1,36,40:55
+lemont_vs_hinsdale_south,Lemont,Set piece,throw in,False,1,37,41:27
+lemont_vs_hinsdale_south,Hinsdale South,Long ball,,False,1,43,47:55
+lemont_vs_hinsdale_south,Lemont,Set piece,corner,False,2,42,60:28
+lemont_vs_hinsdale_south,Lemont,Set piece,free kick,False,2,43,61:32
+lemont_vs_hinsdale_south,Lemont,Shot,off target,False,2,44,62:34
+lemont_vs_hinsdale_south,Lemont,Set piece,corner,False,2,45,62:56
+lemont_vs_hinsdale_south,Lemont,Set piece,corner,False,2,45,62:57
+lemont_vs_hinsdale_south,Lemont,Cross,,False,2,45,63:00
+lemont_vs_hinsdale_south,Lemont,Set piece,corner,False,2,45,63:02
+lemont_vs_hinsdale_south,Lemont,Cross,,False,2,45,63:03
+lemont_vs_hinsdale_south,Lemont,Shot,shot · set piece,False,2,45,63:05
+lemont_vs_hinsdale_south,Lemont,Shot,goal,True,2,45,63:10
+lemont_vs_hinsdale_south,Lemont,Set piece,kickoff,False,2,45,63:44
+lemont_vs_hinsdale_south,Lemont,Turnover,,False,2,46,64:12
+lemont_vs_hinsdale_south,Lemont,Set piece,corner,False,2,50,68:04
+lemont_vs_hinsdale_south,Lemont,Set piece,free kick,False,2,53,71:40
+lemont_vs_hinsdale_south,Lemont,Set piece,free kick,False,2,53,71:53
+lemont_vs_hinsdale_south,Lemont,Cross,,False,2,53,71:54
+lemont_vs_hinsdale_south,Lemont,Set piece,free kick,False,2,54,71:56
+lemont_vs_hinsdale_south,Lemont,Shot,goal,True,2,54,71:59
+lemont_vs_hinsdale_south,Lemont,Set piece,kickoff,False,2,55,72:58
+lemont_vs_hinsdale_south,Hinsdale South,Set piece,kickoff,False,2,55,73:00
+lemont_vs_hinsdale_south,Lemont,Shot,goal,True,2,55,73:24
+lemont_vs_hinsdale_south,Lemont,Set piece,kickoff,False,2,56,74:11
+lemont_vs_hinsdale_south,Lemont,Set piece,kickoff,False,2,56,74:12
+lemont_vs_hinsdale_south,Lemont,Set piece,corner,False,2,57,75:40
+lemont_vs_hinsdale_south,Lemont,Set piece,free kick,False,2,60,78:32
+lemont_vs_hinsdale_south,Hinsdale South,Counter,,False,2,64,82:32
+lemont_vs_hinsdale_south,Lemont,Shot,on target · ST · central,False,2,65,83:24
+lemont_vs_hinsdale_south,Lemont,Shot,shot · counter,False,2,65,83:53
+lemont_vs_hinsdale_south,Lemont,Shot,shot,False,2,65,83:54
+lemont_vs_hinsdale_south,Hinsdale South,Set piece,kickoff,False,2,66,84:12
+lemont_vs_hinsdale_south,Lemont,Set piece,kickoff,False,2,66,84:44
+lemont_vs_hinsdale_south,Hinsdale South,Set piece,throw in,False,2,69,87:52
+lemont_vs_hinsdale_south,Lemont,Shot,goal,True,2,70,88:32
+lemont_vs_hinsdale_south,Hinsdale South,Set piece,corner,False,2,76,94:36
+lemont_vs_hinsdale_south,Hinsdale South,Set piece,throw in,False,2,80,98:52
+lemont_vs_hinsdale_south,Hinsdale South,Set piece,throw in,False,2,81,99:16
+lemont_vs_hinsdale_south,Hinsdale South,Set piece,throw in,False,2,82,100:12
+lemont_vs_hinsdale_south,Hinsdale South,Set piece,free kick,False,2,83,101:00
+lemont_vs_hinsdale_south,Hinsdale South,Set piece,free kick,False,2,83,101:12
+lemont_vs_hinsdale_south,Lemont,Set piece,throw in,False,2,83,101:32
+lemont_vs_hinsdale_south,Lemont,Set piece,throw in,False,2,83,101:44
+lemont_vs_hinsdale_south,Lemont,Set piece,corner,False,2,88,106:36
+lemont_vs_hinsdale_south,Lemont,Set piece,corner,False,2,88,106:40
+uhigh_vs_providence_catholic,Providence Catholic,Press,,False,1,1,28:21
+uhigh_vs_providence_catholic,U-High,Turnover,,False,1,2,29:41
+uhigh_vs_providence_catholic,U-High,Turnover,,False,1,5,33:09
+uhigh_vs_providence_catholic,U-High,Set piece,throw in,False,1,7,34:29
+uhigh_vs_providence_catholic,U-High,Set piece,throw in,False,1,7,34:49
+uhigh_vs_providence_catholic,Providence Catholic,Long ball,,False,1,8,36:01
+uhigh_vs_providence_catholic,Providence Catholic,Set piece,throw in,False,1,11,38:49
+uhigh_vs_providence_catholic,Providence Catholic,Set piece,free kick,False,1,12,40:05
+uhigh_vs_providence_catholic,Providence Catholic,Turnover,,False,1,12,40:09
+uhigh_vs_providence_catholic,Providence Catholic,Turnover,,False,1,15,42:57
+uhigh_vs_providence_catholic,Providence Catholic,Turnover,,False,1,16,43:53
+uhigh_vs_providence_catholic,U-High,Turnover,,False,1,17,44:17
+uhigh_vs_providence_catholic,U-High,Long ball,,False,1,23,50:25
+uhigh_vs_providence_catholic,U-High,Set piece,free kick,False,1,26,53:29
+uhigh_vs_providence_catholic,U-High,Set piece,corner,False,1,27,54:45
+uhigh_vs_providence_catholic,Providence Catholic,Long ball,,False,1,29,56:21
+uhigh_vs_providence_catholic,U-High,Shot,goal,True,1,29,56:44
+uhigh_vs_providence_catholic,U-High,Turnover,,False,1,38,65:29
+uhigh_vs_providence_catholic,U-High,Set piece,throw in,False,1,40,67:49
+uhigh_vs_providence_catholic,U-High,Set piece,free kick,False,1,43,70:37
+uhigh_vs_providence_catholic,U-High,Set piece,kickoff,False,2,41,82:38
+uhigh_vs_providence_catholic,U-High,Long ball,,False,2,41,83:22
+uhigh_vs_providence_catholic,Providence Catholic,Turnover,,False,2,42,83:58
+uhigh_vs_providence_catholic,Providence Catholic,Set piece,throw in,False,2,45,87:10
+uhigh_vs_providence_catholic,U-High,Set piece,throw in,False,2,46,88:26
+uhigh_vs_providence_catholic,Providence Catholic,Turnover,,False,2,49,90:46
+uhigh_vs_providence_catholic,U-High,Set piece,free kick,False,2,49,91:14
+uhigh_vs_providence_catholic,Providence Catholic,Set piece,goal kick,False,2,52,93:42
+uhigh_vs_providence_catholic,Providence Catholic,Press,,False,2,55,97:15
+uhigh_vs_providence_catholic,U-High,Shot,goal,True,2,56,98:00
+uhigh_vs_providence_catholic,U-High,Set piece,kickoff,False,2,57,98:41
+uhigh_vs_providence_catholic,U-High,Set piece,kickoff,False,2,57,98:42
+uhigh_vs_providence_catholic,U-High,Set piece,set piece,False,2,59,100:58
+uhigh_vs_providence_catholic,Providence Catholic,Press,,False,2,59,101:34
+uhigh_vs_providence_catholic,U-High,Set piece,throw in,False,2,60,102:02
+uhigh_vs_providence_catholic,U-High,Turnover,,False,2,64,106:02
+uhigh_vs_providence_catholic,Providence Catholic,Set piece,free kick,False,2,70,111:42
+uhigh_vs_providence_catholic,U-High,Set piece,free kick,False,2,71,113:18
+uhigh_vs_providence_catholic,U-High,Set piece,free kick,False,2,77,119:30
+uhigh_vs_providence_catholic,U-High,Set piece,free kick,False,2,78,120:18
+uhigh_vs_providence_catholic,Providence Catholic,Counter,,False,2,78,120:30
+uhigh_vs_providence_catholic,Providence Catholic,Shot,goal,True,,,

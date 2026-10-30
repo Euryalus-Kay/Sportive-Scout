@@ -4,6 +4,9 @@ Soccer film analysis: give it your team's game and your opponent's game, and get
 maps, formations, shot maps, and the numbers that stand out for both teams, side by side.
 Every insight lists the moments behind it, so you can check it on film.
 
+**Website and live demo: https://euryalus-kay.github.io/Sportive-Scout/** (the demo is the
+real app running in your browser with made-up teams, nothing to install).
+
 ## Setup (once)
 Needs Python 3.10 or newer and ffmpeg (`brew install ffmpeg`).
 ```bash
@@ -50,10 +53,31 @@ frames each), many at once. Small chunks keep the quality up because the model s
 images per request; running many at once keeps it fast. Every answer is saved the moment it
 arrives, so stopping or crashing never loses paid work, and running again skips what's done.
 
-**Cost:** the app shows an estimate before it starts. The built-in estimate for one full game
-is about $9 with Claude Opus 5.5 (the default, most accurate), about $5 with Sonnet 5.5 and
-well under $1 with Haiku 5.5. Treat those as rough until you've run a few games: the real
-spend is measured per batch and shown on the Analyze film page.
+**Cost:** the app shows an estimate before it starts. For one full game it's about $7 with
+Claude Opus 5.5 (the default, most accurate), about $3.50 with Sonnet 5.5 and about 20 cents
+with Haiku 5.5. The real spend is measured per batch and shown on the Analyze film page.
+
+### Tested on real film
+Two full high school games from a public-access cable broadcast (about 85 minutes of play
+each, one wide camera, 1080p) ran through `python -m src.run --all` in October 2026.
+
+| | Game 1 | Game 2 | Both |
+|---|---|---|---|
+| Frames read, one every 4 s | 1,265 | 1,296 | 2,561 |
+| Frames read around goals and shots | 109 | 91 | 200 |
+| Requests to Claude | 94 | 94 | 188 |
+| Cost with Claude Opus 5.5 | $6.83 | $7.51 | $14.35 |
+| Goals spotted in the first pass alone | 1 of 3 | 2 of 3 | 3 of 6 |
+| Goals placed after the second pass | 3 of 3 | 3 of 3 | 6 of 6, all within 5 s, right team |
+
+- **Time:** about 25 seconds per game to pull the frames, then 9 minutes 16 seconds to read
+  both games with eight requests at a time. Every request finished, nothing had to be redone.
+- **Still hard on this kind of film:** from one wide camera the players are small, so no
+  frame gave a readable formation. About half the frames were marked contested and the
+  average confidence was 0.43. The goals in Pass 2 came from the goal times entered for each
+  game; Pass 1 on its own caught half of them. Film from a tactical camera is the next test.
+- Test film from DoubleACS (Attleboro Access Cable System), CC BY-NC-ND 3.0, used for private
+  testing only. It is not in this repo, and neither are its logs or reports.
 
 ### By hand, with Claude Code (no API key)
 1. Put the videos in `film/` and fill in the games on the **Analyze film** page (or `games.yaml`).
@@ -76,6 +100,7 @@ spend is measured per batch and shown on the Analyze film page.
 | Visuals | `src/visualize.py` | Field drawings and charts for reports (PNG) |
 | Reports | `src/report.py` | Markdown reports, PNGs and a printable HTML report in `reports/` |
 | Interface | `app.py`, `src/ui/` | The Streamlit app; `src/ui/theme.py` holds the look (clean, Polymarket-style), `src/ui/charts.py` the interactive charts |
+| Website | `website/` | The landing page and the in-browser demo (the app on [stlite](https://github.com/whitphx/stlite)). `python website/build.py` builds it into `_site/`; GitHub Actions publishes it to GitHub Pages on every push to `main` |
 
 ## Tests
 ```bash

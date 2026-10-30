@@ -41,10 +41,12 @@ MAX_TOKENS = 32000          # room for thinking plus ~32 frames of JSON
 RETRIES = 2                 # extra tries for a bad answer (the SDK retries network errors itself)
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
-# Rough sizes for the cost estimate (real usage is measured while running).
+# Sizes for the cost estimate, measured on two full games (Oct 2026): about 1,770 input
+# tokens per grid, 3,740 cached prompt tokens per request and 155-175 output tokens per frame.
+# Real usage is still measured while running.
 TOKENS_PER_GRID = 1800      # a 1536x864 grid image is about width*height/750 tokens
-PROMPT_TOKENS = 1700        # rules + game info, read from the prompt cache after the first request
-OUTPUT_TOKENS_PER_FRAME = 250
+PROMPT_TOKENS = 3700        # rules + game info, read from the prompt cache after the first request
+OUTPUT_TOKENS_PER_FRAME = 170
 
 
 # ---------- what Claude is told ----------

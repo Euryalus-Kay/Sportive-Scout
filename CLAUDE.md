@@ -67,7 +67,18 @@ Sportive-Scout/
     sample_data.py      # generates the fake demo logs
     ui/                 # the app: theme.py (look), charts.py (interactive charts), pages/
   tests/                # pytest; fake_api.py stands in for the Claude API
+  website/              # landing page + in-browser demo, published to GitHub Pages
 ```
+
+## Website and browser demo
+https://euryalus-kay.github.io/Sportive-Scout/ is built from `website/` by
+`python website/build.py` and published to the `gh-pages` branch by
+`.github/workflows/pages.yml` on every push to `main`. The demo is this app running in the
+browser on stlite (Streamlit on Pyodide), packed from `app.py`, `src/` and `sample/`.
+In the browser `config.IN_BROWSER` is True: there is no ffmpeg, no threads and no API, so
+the app shows the demo data only. Keep imports at the top of modules browser-safe (import
+`anthropic` and other heavy or native packages inside functions), and check the demo still
+loads after big UI changes.
 
 ## games.yaml
 `matchup: {our_team, opponent}` = the game being prepared for. Then one entry per video:
@@ -102,8 +113,10 @@ Sportive-Scout/
 ## Build status
 All stages built (extraction, logging, stats, insights, reports, interface), plus the
 Claude API analyzer, parallel extraction and analysis, the one-command pipeline, the
-multi-page app, and a pytest suite (`python -m pytest`, run by GitHub Actions).
-Next: run the API analyzer on real film with a key and compare its logs to the film.
+multi-page app, a pytest suite (`python -m pytest`, run by GitHub Actions) and the website.
+Tested on two full real games (Oct 2026, results in the README): fast and about $7 a game,
+but one wide camera gives no readable formations and many "contested" frames.
+Next: test film from a tactical camera, and consider an "unknown" possession option.
 
 ## Insights, not advice
 The app shows insights only: a number, a short plain line and what it is based on
